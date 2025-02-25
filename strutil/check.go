@@ -90,7 +90,7 @@ func HasAllSubs(s string, subs []string) bool {
 }
 
 // StartsWithAny alias of the HasOnePrefix
-var StartsWithAny = HasOneSuffix
+var StartsWithAny = HasOnePrefix
 
 // IsStartsOf alias of the HasOnePrefix
 func IsStartsOf(s string, prefixes []string) bool {
