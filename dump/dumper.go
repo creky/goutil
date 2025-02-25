@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gookit/color"
 	"github.com/gookit/goutil/strutil"
@@ -148,9 +149,9 @@ func (d *Dumper) printCaller(pc uintptr, file string, line int) {
 		case Ffile: // full file path
 			nodes = append(nodes, file)
 		case Ffname: // only file name
-			fName := path.Base(file) // file name
+			fName := filepath.Base(file) // file name
 			nodes = append(nodes, fName)
-		case Fline:
+		default: // Fline
 			nodes = append(nodes, ":", lineS)
 		}
 	}
@@ -274,6 +275,18 @@ func (d *Dumper) printRValue(t reflect.Type, v reflect.Value) {
 	case reflect.Struct:
 		if v.CanAddr() && !d.checkCyclicRef(t, v) {
 			break // don't print v again
+		}
+
+		// up: special handel time.Time struct
+		if t == timeType {
+			d.printf("time.Time(%s),\n", d.ColorTheme.string(d.fmtTimeValue(v)))
+			break
+		}
+		// up: if is type alias of time.Time, use datetime format
+		if !isPtr && t.ConvertibleTo(timeType) {
+			tv := v.Convert(timeType)
+			d.printf("%s(%s),\n", t.String(), d.ColorTheme.string(d.fmtTimeValue(tv)))
+			break
 		}
 
 		d.write(!isPtr, d.ColorTheme.msType(t.String()), " {\n")
@@ -401,6 +414,16 @@ func (d *Dumper) rvStringer(rt reflect.Type, rv reflect.Value) string {
 		return d.ColorTheme.valTip(` #str: "` + rv.Interface().(fmt.Stringer).String() + `"`)
 	}
 	return ""
+}
+
+func (d *Dumper) fmtTimeValue(v reflect.Value) string {
+	var timeStr string
+	if v.CanInterface() {
+		timeStr = v.Interface().(time.Time).Format(time.RFC3339)
+	} else {
+		timeStr = v.String()
+	}
+	return timeStr
 }
 
 func (d *Dumper) print(v ...any) {

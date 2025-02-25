@@ -16,8 +16,7 @@ const (
 	KeySepChar = '.'
 )
 
-// SimpleMerge simple merge two data map by string key.
-// will merge the src to dst map
+// SimpleMerge simple merge two data map by string key. will merge the src to dst map
 func SimpleMerge(src, dst map[string]any) map[string]any {
 	if len(src) == 0 {
 		return dst
@@ -38,6 +37,17 @@ func SimpleMerge(src, dst map[string]any) map[string]any {
 		dst[key] = val
 	}
 	return dst
+}
+
+// Merge1level merge multi any map[string]any data. only merge one level data.
+func Merge1level(mps ...map[string]any) map[string]any {
+	newMp := make(map[string]any)
+	for _, mp := range mps {
+		for k, v := range mp {
+			newMp[k] = v
+		}
+	}
+	return newMp
 }
 
 // func DeepMerge(src, dst map[string]any, deep int) map[string]any { TODO
@@ -64,6 +74,27 @@ func MergeStringMap(src, dst map[string]string, ignoreCase bool) map[string]stri
 		dst[k] = v
 	}
 	return dst
+}
+
+// MergeMultiSMap quick merge multi string-map data.
+func MergeMultiSMap(mps ...map[string]string) map[string]string {
+	newMp := make(map[string]string)
+	for _, mp := range mps {
+		for k, v := range mp {
+			newMp[k] = v
+		}
+	}
+	return newMp
+}
+
+// FilterSMap filter empty elem for the string map.
+func FilterSMap(sm map[string]string) map[string]string {
+	for key, val := range sm {
+		if val == "" {
+			delete(sm, key)
+		}
+	}
+	return sm
 }
 
 // MakeByPath build new value by key names

@@ -106,7 +106,8 @@ func TestCommon_fail(t *testing.T) {
 	str := tc.First()
 	assert.StrContains(t, str, "TestCommon_fail")
 	assert.StrContains(t, str, "goutil/testutil/assert/asserts_test.go:")
-	assert.StrContains(t, str, "Expected nil, but got: 1")
+	assert.StrContains(t, str, "Expected nil, but got:")
+	assert.StrNotContains(t, str, "NOT EXIST")
 	tc.Reset()
 
 	assert.NotNil(tc, nil)
@@ -315,4 +316,7 @@ func TestContains(t *testing.T) {
 	assert.ContainsKeys(t, mp, []string{"name", "age"})
 	assert.NotContainsKey(t, mp, "addr")
 	assert.NotContainsKeys(t, mp, []string{"addr"})
+
+	assert.ContainsElems(t, []string{"def"}, []string{"def"})
+	assert.ContainsElems(t, []string{"def", "abc"}, []string{"def"})
 }

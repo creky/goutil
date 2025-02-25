@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
+	"path/filepath"
 	"sort"
 
 	"github.com/gookit/color"
 	"github.com/gookit/goutil"
 	"github.com/gookit/goutil/cliutil"
+	"github.com/gookit/goutil/errorx"
 	"github.com/gookit/goutil/mathutil"
 	"github.com/gookit/goutil/strutil"
 )
@@ -30,6 +31,12 @@ type App struct {
 
 	// AfterHelpBuild hook
 	AfterHelpBuild func(buf *strutil.Buffer)
+	// BeforeRun hook func
+	//  - cmdArgs: input raw args for current command.
+	//  - return false to stop run.
+	BeforeRun func(c *Cmd, cmdArgs []string) bool
+	// AfterRun hook func
+	AfterRun func(c *Cmd, err error)
 }
 
 // NewApp instance
@@ -49,7 +56,9 @@ func NewApp(fns ...func(app *App)) *App {
 	return app
 }
 
-// Add command(s) to app
+// Add command(s) to app.
+//
+// NOTE: command object should create use NewCmd()
 func (a *App) Add(cmds ...*Cmd) {
 	for _, cmd := range cmds {
 		a.addCmd(cmd)
@@ -72,6 +81,14 @@ func (a *App) addCmd(c *Cmd) {
 
 	// attach handle func
 	if c.Func != nil {
+		// fix: init c.CFlags on not exist
+		if c.CFlags == nil {
+			c.CFlags = NewEmpty(func(cf *CFlags) {
+				cf.Desc = c.Desc
+				cf.FlagSet = flag.NewFlagSet(c.Name, flag.ContinueOnError)
+			})
+		}
+
 		c.CFlags.Func = func(_ *CFlags) error {
 			return c.Func(c)
 		}
@@ -87,6 +104,10 @@ func (a *App) Run() {
 	err := a.RunWithArgs(os.Args[1:])
 	if err != nil {
 		cliutil.Errorln("ERROR:", err)
+		if Debug {
+			fmt.Println(errorx.Newf("(debug mode)RUNTIME ERROR: %v", err))
+		}
+		os.Exit(1)
 	}
 }
 
@@ -102,7 +123,6 @@ func (a *App) RunWithArgs(args []string) error {
 	if name == "help" || name == "--help" || name == "-h" {
 		return a.showHelp()
 	}
-
 	if name[0] == '-' {
 		return fmt.Errorf("provide undefined flag option %q", name)
 	}
@@ -112,12 +132,24 @@ func (a *App) RunWithArgs(args []string) error {
 		return fmt.Errorf("input not exists command %q", name)
 	}
 
-	return cmd.Parse(args[1:])
+	cmdArgs := args[1:]
+	if a.BeforeRun != nil && !a.BeforeRun(cmd, cmdArgs) {
+		return nil
+	}
+
+	err := cmd.Parse(cmdArgs)
+
+	// fire after run hook
+	if a.AfterRun != nil {
+		a.AfterRun(cmd, err)
+	}
+	return err
 }
 
 func (a *App) init() {
 	if a.Name == "" {
-		a.Name = path.Base(os.Args[0])
+		// fix: path.Base not support windows
+		a.Name = filepath.Base(os.Args[0])
 	}
 }
 
@@ -145,7 +177,7 @@ func (a *App) showHelp() error {
 	for _, name := range a.names {
 		c := a.cmds[name]
 		name := strutil.PadRight(name, " ", a.NameWidth)
-		buf.Printf("  <green>%s</>  %s\n", name, strutil.UpperFirst(c.Desc))
+		buf.Printf("  <green>%s</>  %s\n", name, strutil.UpperFirst(c.getDesc()))
 	}
 
 	name := strutil.PadRight("help", " ", a.NameWidth)
@@ -168,8 +200,9 @@ func (a *App) showHelp() error {
 type Cmd struct {
 	*CFlags
 	Name  string
-	Func  func(c *Cmd) error
+	Desc  string // desc for command, will sync to CFlags.Desc
 	OnAdd func(c *Cmd)
+	Func  func(c *Cmd) error
 }
 
 // NewCmd instance
@@ -191,4 +224,11 @@ func (c *Cmd) Config(fn func(c *Cmd)) *Cmd {
 		fn(c)
 	}
 	return c
+}
+
+func (c *Cmd) getDesc() string {
+	if c.CFlags.Desc != "" {
+		return c.CFlags.Desc
+	}
+	return c.Desc
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gookit/goutil/arrutil"
+	"github.com/gookit/goutil/comdef"
 	"github.com/gookit/goutil/internal/checkfn"
 	"github.com/gookit/goutil/maputil"
 	"github.com/gookit/goutil/mathutil"
@@ -21,7 +22,7 @@ func Nil(t TestingT, give any, fmtAndArgs ...any) bool {
 	}
 
 	t.Helper()
-	return fail(t, fmt.Sprintf("Expected nil, but got: %#v", give), fmtAndArgs)
+	return fail(t, fmt.Sprintf("Expected nil, but got:\n %+v", give), fmtAndArgs)
 }
 
 // NotNil asserts that the given is a not nil value
@@ -287,7 +288,19 @@ func NotContainsKeys(t TestingT, mp any, keys any, fmtAndArgs ...any) bool {
 	return true
 }
 
-// StrContains asserts that the given strings is contains sub-string
+// ContainsElems asserts that the given list should contains sub elements.
+func ContainsElems[T comdef.ScalarType](t TestingT, list, sub []T, fmtAndArgs ...any) bool {
+	if arrutil.ContainsAll(list, sub) {
+		return true
+	}
+
+	t.Helper()
+
+	// not contains all
+	return fail(t, fmt.Sprintf("%#v\nShould contain: %#v", list, sub), fmtAndArgs)
+}
+
+// StrContains asserts that the given string should contain sub-string
 func StrContains(t TestingT, s, sub string, fmtAndArgs ...any) bool {
 	if strings.Contains(s, sub) {
 		return true
@@ -300,7 +313,20 @@ func StrContains(t TestingT, s, sub string, fmtAndArgs ...any) bool {
 	)
 }
 
-// StrCount asserts that the given strings is contains sub-string and count
+// StrNotContains asserts that the given string should not contain sub-string
+func StrNotContains(t TestingT, s, sub string, fmtAndArgs ...any) bool {
+	if !strings.Contains(s, sub) {
+		return true
+	}
+
+	t.Helper()
+	return fail(t,
+		fmt.Sprintf("String check fail:\nGiven string: %#v\nShould not contains: %#v", s, sub),
+		fmtAndArgs,
+	)
+}
+
+// StrCount asserts that the given string should contain sub-string and count
 func StrCount(t TestingT, s, sub string, count int, fmtAndArgs ...any) bool {
 	if strings.Count(s, sub) == count {
 		return true

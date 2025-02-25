@@ -25,6 +25,12 @@ func TestValid(t *testing.T) {
 	is.Eq("cd", strutil.OrElse("", "cd"))
 	is.Eq("ab", strutil.OrElse("ab", "cd"))
 
+	var str = "non-empty"
+	is.Equal(str, strutil.OrElseNilSafe(&str, "fallback"))
+	str = ""
+	is.Equal("fallback", strutil.OrElseNilSafe(&str, "fallback"))
+	is.Equal("default", strutil.OrElseNilSafe(nil, "default"))
+
 	is.Eq(" ", strutil.ZeroOr(" ", "cd"))
 	is.Eq("cd", strutil.ZeroOr("", "cd"))
 	is.Eq("ab", strutil.ZeroOr("ab", "cd"))
@@ -39,14 +45,6 @@ func TestValid(t *testing.T) {
 
 	is.Eq("ab", strutil.OrHandle("  ab  ", strings.TrimSpace))
 	is.Empty(strutil.OrHandle("", strings.TrimSpace))
-}
-
-func TestRenderTemplate(t *testing.T) {
-	tpl := "hi, My name is {{ .name | upFirst }}, age is {{ .age }}"
-	assert.Eq(t, "hi, My name is Inhere, age is 2000", strutil.RenderTemplate(tpl, map[string]any{
-		"name": "inhere",
-		"age":  2000,
-	}, nil))
 }
 
 func TestReplaces(t *testing.T) {
@@ -89,21 +87,4 @@ func TestSubstrCount(t *testing.T) {
 	res, err = strutil.SubstrCount(s, substr, 1, 2, 3)
 	assert.Err(t, err)
 	assert.Eq(t, 0, res)
-}
-
-func TestPrettyJSON(t *testing.T) {
-	tests := []any{
-		map[string]int{"a": 1},
-		struct {
-			A int `json:"a"`
-		}{1},
-	}
-	want := `{
-    "a": 1
-}`
-	for _, sample := range tests {
-		got, err := strutil.PrettyJSON(sample)
-		assert.NoErr(t, err)
-		assert.Eq(t, want, got)
-	}
 }

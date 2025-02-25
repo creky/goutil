@@ -7,6 +7,7 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
 	"unsafe"
 
 	"github.com/gookit/color"
@@ -194,6 +195,7 @@ func TestDumper_AccessCantExportedField(_ *testing.T) {
 func TestDumper_AccessCantExportedField1(t *testing.T) {
 	// init a nested struct
 	s1 := st1{st0{2}, 23, "inhere"}
+	assert.Eq(t, "inhere", s1.Name)
 	myS1 := struct {
 		// cannotExport any // ok
 		cannotExport st1 // ok
@@ -212,7 +214,7 @@ func TestDumper_AccessCantExportedField1(t *testing.T) {
 
 // ------------------------- map -------------------------
 
-func TestDump_Map(t *testing.T) {
+func TestDump_Map(_ *testing.T) {
 	m4 := map[string]any{
 		"key1": 12,
 		"key2": "val1",
@@ -232,7 +234,7 @@ func TestDump_Map(t *testing.T) {
 	Print(m4)
 }
 
-func TestMap_Simpled(t *testing.T) {
+func TestMap_Simpled(_ *testing.T) {
 	m1 := map[int]int{
 		23: 12,
 		24: 13,
@@ -290,6 +292,7 @@ func TestMap_Simpled(t *testing.T) {
 
 func TestMap_InterfaceNested(t *testing.T) {
 	s1 := st1{st0{2}, 23, "inhere"}
+	assert.Eq(t, "inhere", s1.Name)
 	m1 := map[string]any{
 		"key1": 112,
 		"key2": uint(112),
@@ -358,11 +361,11 @@ var (
 	s1 = st1{st0{2}, 23, "inhere"}
 )
 
-func TestDump_Struct(t *testing.T) {
+func TestDump_Struct(_ *testing.T) {
 	P(user)
 }
 
-func TestStruct_WithNested(t *testing.T) {
+func TestStruct_WithNested(_ *testing.T) {
 	// buffer := new(bytes.Buffer)
 	dumper := newStd()
 	dumper.IndentChar = '.'
@@ -421,19 +424,21 @@ func TestStruct_WithNested(t *testing.T) {
 	// }
 }
 
-func TestDumper_Dump_userType(t *testing.T) {
+func TestDumper_Dump_userType(_ *testing.T) {
 	type testSt struct {
-		name string
-		mod  fs.FileMode
-		Mod2 fs.FileMode
-		Age  int
+		name      string
+		mod       fs.FileMode
+		Mod2      fs.FileMode
+		Age       int
+		createdAt time.Time
 	}
 
 	st := testSt{
-		name: "inhere",
-		mod:  0777,
-		Mod2: 0775,
-		Age:  23,
+		name:      "inhere",
+		mod:       0777,
+		Mod2:      0775,
+		Age:       23,
+		createdAt: time.Now(),
 	}
 
 	fmt.Println("------ use dumper ------")
