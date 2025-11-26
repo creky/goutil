@@ -13,6 +13,20 @@ func TestIsNumeric(t *testing.T) {
 	assert.False(t, mathutil.IsNumeric('a'))
 }
 
+func TestIsInteger(t *testing.T) {
+	tests1 := []any{
+		2, uintptr(2), '2',
+		int8(2), int16(2), int32(2), int64(2),
+		uint(2), uint8(2), uint16(2), uint32(2), uint64(2),
+	}
+	for _, val := range tests1 {
+		assert.True(t, mathutil.IsInteger(val))
+	}
+
+	assert.False(t, mathutil.IsInteger(3.4))
+	assert.False(t, mathutil.IsInteger("3"))
+}
+
 func TestCompare(t *testing.T) {
 	tests := []struct {
 		x, y any
@@ -68,6 +82,7 @@ func TestInRange(t *testing.T) {
 	assert.True(t, mathutil.InRange(1, 1, 1))
 	assert.False(t, mathutil.InRange(1, 2, 1))
 	assert.False(t, mathutil.InRange(1, 2, 2))
+	assert.False(t, mathutil.InRange[uint](1, 2, 2))
 
 	assert.True(t, mathutil.InRange(1.1, 1.1, 2.2))
 	assert.True(t, mathutil.InRange(1.1, 1.1, 1.1))

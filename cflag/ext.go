@@ -1,7 +1,6 @@
 package cflag
 
 import (
-	"flag"
 	"fmt"
 	"strconv"
 	"strings"
@@ -15,25 +14,30 @@ import (
 
 // RepeatableFlag interface.
 type RepeatableFlag interface {
-	flag.Value
 	// IsRepeatable mark option flag can be set multi times
 	IsRepeatable() bool
 }
 
-// LimitInt limit int value range
-func LimitInt(min, max int) comdef.IntCheckFunc {
-	return func(val int) error {
-		if val < min || val > max {
-			return fmt.Errorf("the value must be between %d and %d", min, max)
-		}
-		return nil
-	}
+// ExtendedFlagType interface.
+type ExtendedFlagType interface {
+	// FlagTypeDesc flag type description. use for enum and more custom types.
+	FlagTypeDesc() string
 }
 
 /*************************************************************************
  * options: some special flag vars
  * - implemented flag.Value interface
  *************************************************************************/
+
+// LimitInt limit int value range
+func LimitInt(min, max int) comdef.IntCheckFunc {
+	return func(val int) error {
+		if val < min || val > max {
+			return fmt.Errorf("option value must be between %d and %d", min, max)
+		}
+		return nil
+	}
+}
 
 // IntVar int value can with a check func
 //
@@ -54,9 +58,7 @@ func NewIntVar(checkFn comdef.IntCheckFunc) IntVar {
 }
 
 // Get value
-func (o *IntVar) Get() any {
-	return o.val
-}
+func (o *IntVar) Get() any { return o.val }
 
 // Set new value
 func (o *IntVar) Set(value string) error {
@@ -77,33 +79,29 @@ func (o *IntVar) Set(value string) error {
 }
 
 // String value get
-func (o *IntVar) String() string {
-	return o.str
-}
+func (o *IntVar) String() string { return o.str }
 
 // String a special string
 //
 // Usage:
 //
 //	// case 1:
-//	var names gcli.String
+//	var names cflag.String
 //	c.VarOpt(&names, "names", "", "multi name by comma split")
 //
 //	--names "tom,john,joy"
-//	names.Split(",") -> []string{"tom","john","joy"}
+//	names.Split(",") // -> []string{"tom","john","joy"}
 //
 //	// case 2:
-//	var ids gcli.String
+//	var ids cflag.String
 //	c.VarOpt(&ids, "ids", "", "multi id by comma split")
 //
 //	--names "23,34,56"
-//	names.Ints(",") -> []int{23,34,56}
+//	names.Ints(",") // -> []int{23,34,56}
 type String string
 
 // Get value
-func (s *String) Get() any {
-	return string(*s)
-}
+func (s *String) Get() any { return string(*s) }
 
 // Set value
 func (s *String) Set(val string) error {
@@ -112,9 +110,7 @@ func (s *String) Set(val string) error {
 }
 
 // String input value to string
-func (s *String) String() string {
-	return string(*s)
-}
+func (s *String) String() string { return string(*s) }
 
 // Strings split value to []string by sep ','
 func (s *String) Strings() []string {
@@ -149,9 +145,7 @@ func NewStrVar(checkFn comdef.StrCheckFunc) StrVar {
 }
 
 // Get value string
-func (o *StrVar) Get() any {
-	return o.val
-}
+func (o *StrVar) Get() any { return o.val }
 
 // Set new value
 func (o *StrVar) Set(value string) error {
@@ -166,9 +160,7 @@ func (o *StrVar) Set(value string) error {
 }
 
 // String value get
-func (o *StrVar) String() string {
-	return o.val
-}
+func (o *StrVar) String() string { return o.val }
 
 // IntsString The ints-string flag. eg: --get 1,2,3
 //
@@ -223,14 +215,10 @@ func (o *IntsString) Set(value string) error {
 type Ints []int
 
 // String to string
-func (s *Ints) String() string {
-	return arrutil.ToString(*s)
-}
+func (s *Ints) String() string { return arrutil.ToString(*s) }
 
 // Get value
-func (s *Ints) Get() any {
-	return *s
-}
+func (s *Ints) Get() any { return *s }
 
 // Set new value
 func (s *Ints) Set(value string) error {
@@ -242,14 +230,10 @@ func (s *Ints) Set(value string) error {
 }
 
 // Ints value
-func (s *Ints) Ints() []int {
-	return *s
-}
+func (s *Ints) Ints() []int { return *s }
 
 // IsRepeatable on input
-func (s *Ints) IsRepeatable() bool {
-	return true
-}
+func (s *Ints) IsRepeatable() bool { return true }
 
 // Strings The string flag list, repeatable.
 // eg: --names tom --names john
@@ -261,9 +245,7 @@ func (s *Strings) String() string {
 }
 
 // Get value
-func (s *Strings) Get() any {
-	return []string(*s)
-}
+func (s *Strings) Get() any { return []string(*s) }
 
 // Set new value
 func (s *Strings) Set(value string) error {
@@ -272,28 +254,20 @@ func (s *Strings) Set(value string) error {
 }
 
 // Strings value
-func (s *Strings) Strings() []string {
-	return *s
-}
+func (s *Strings) Strings() []string { return *s }
 
 // IsRepeatable on input
-func (s *Strings) IsRepeatable() bool {
-	return true
-}
+func (s *Strings) IsRepeatable() bool { return true }
 
 // Booleans The bool flag list, repeatable.
 // eg: -v -v => []bool{true, true}
 type Booleans []bool
 
 // String input value to string
-func (s *Booleans) String() string {
-	return arrutil.ToString(*s)
-}
+func (s *Booleans) String() string { return arrutil.ToString(*s) }
 
 // Bools value
-func (s *Booleans) Bools() []bool {
-	return *s
-}
+func (s *Booleans) Bools() []bool { return *s }
 
 // Set new value
 func (s *Booleans) Set(value string) error {
@@ -305,9 +279,7 @@ func (s *Booleans) Set(value string) error {
 }
 
 // IsRepeatable on input
-func (s *Booleans) IsRepeatable() bool {
-	return true
-}
+func (s *Booleans) IsRepeatable() bool { return true }
 
 // EnumString limit input value is in the enum list.
 // implemented flag.Value interface
@@ -327,9 +299,7 @@ func NewEnumString(enum ...string) EnumString {
 }
 
 // Get value
-func (s *EnumString) Get() any {
-	return s.val
-}
+func (s *EnumString) Get() any { return s.val }
 
 // String input value to string
 func (s *EnumString) String() string {
@@ -363,8 +333,11 @@ func (s *EnumString) Set(value string) error {
 }
 
 // Enum to string
-func (s *EnumString) Enum() []string {
-	return s.enum
+func (s *EnumString) Enum() []string { return s.enum }
+
+// FlagTypeDesc message. will display on the flag description end.
+func (s *EnumString) FlagTypeDesc() string {
+	return "Allow: " + strings.Join(s.enum, ",")
 }
 
 // KVString The kv-string flag, allow input multi.
@@ -384,8 +357,11 @@ func (s *EnumString) Enum() []string {
 //	--var name=inhere --var age=234 => string map {name:inhere, age:234}
 type KVString struct {
 	maputil.SMap
-	Sep string
+	Sep string // Default: "="
 }
+
+// KVStrMap alias for KVString
+type KVStrMap = KVString
 
 // NewKVString instance
 func NewKVString() KVString {
@@ -404,9 +380,7 @@ func (s *KVString) Init() *KVString {
 }
 
 // Get value
-func (s *KVString) Get() any {
-	return s.SMap
-}
+func (s *KVString) Get() any { return s.SMap }
 
 // Data map get
 func (s *KVString) Data() maputil.SMap {
@@ -427,9 +401,7 @@ func (s *KVString) Set(value string) error {
 }
 
 // IsRepeatable on input
-func (s *KVString) IsRepeatable() bool {
-	return true
-}
+func (s *KVString) IsRepeatable() bool { return true }
 
 // ConfString The config-string flag, INI format, like nginx-config.
 //
@@ -442,9 +414,7 @@ type ConfString struct {
 }
 
 // String to string
-func (s *ConfString) String() string {
-	return s.val
-}
+func (s *ConfString) String() string { return s.val }
 
 // SetData value
 func (s *ConfString) SetData(mp map[string]string) {
@@ -457,9 +427,7 @@ func (s *ConfString) Data() maputil.SMap {
 }
 
 // Get value
-func (s *ConfString) Get() any {
-	return s.SMap
-}
+func (s *ConfString) Get() any { return s.SMap }
 
 // Set new value, will check value is right
 func (s *ConfString) Set(value string) error {

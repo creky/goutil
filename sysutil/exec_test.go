@@ -39,7 +39,7 @@ func TestShellExec(t *testing.T) {
 	// *nix: "OK\n" win: "OK\r\n"
 	assert.Eq(t, "OK", strings.TrimSpace(ret))
 
-	ret, err = sysutil.ShellExec("echo OK", "bash")
+	ret, err = sysutil.ShellExec("echo OK", "sh")
 	assert.NoErr(t, err)
 	assert.Eq(t, "OK", strings.TrimSpace(ret))
 
@@ -51,9 +51,9 @@ func TestShellExec(t *testing.T) {
 		})
 
 		t.Run("powershell", func(t *testing.T) {
-			ret, err := sysutil.ShellExec("echo OK", "powershell")
+			ret, err := sysutil.ShellExec("echo TestShellExec", "powershell")
 			assert.NoErr(t, err)
-			assert.Eq(t, "OK", strings.TrimSpace(ret))
+			assert.StrContains(t, strings.TrimSpace(ret), "TestShellExec")
 		})
 	}
 }

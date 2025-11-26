@@ -75,8 +75,8 @@ func Utf8Width(s string) int { return RunesWidth([]rune(s)) }
 //	str := "hi,你好"
 //
 //	len(str) // 9
-//	strutil.Utf8Width(str) // 7
-//	len([]rune(str)) = utf8.RuneCountInString(s) // 5
+//	strutil.RunesWidth(str) // 7 一个中文字占两个字符
+//	len([]rune(str)) = utf8.RuneCountInString(s) // 5 按字算
 func RunesWidth(rs []rune) (w int) {
 	if len(rs) == 0 {
 		return
@@ -114,6 +114,10 @@ func Utf8Truncate(s string, w int, tail string) string {
 	}
 	return string(r[0:i]) + tail
 }
+
+// Chunk split string to chunks by size.
+// func Chunk[T ~string](s T, size int) []T {
+// }
 
 // TextSplit alias of the Utf8Split()
 func TextSplit(s string, w int) []string { return Utf8Split(s, w) }

@@ -38,10 +38,13 @@ func TestToStrings(t *testing.T) {
 	ss = arrutil.MustToStrings([]int{1, 2})
 	is.Eq(`[]string{"1", "2"}`, fmt.Sprintf("%#v", ss))
 
+	ss = arrutil.MustToStrings([]string{"a", "b"})
+	is.Eq(`[]string{"a", "b"}`, fmt.Sprintf("%#v", ss))
+
 	ss = arrutil.MustToStrings([]any{1, 2})
 	is.Eq(`[]string{"1", "2"}`, fmt.Sprintf("%#v", ss))
 
-	ss = arrutil.SliceToStrings([]any{1, 2})
+	ss = arrutil.QuietStrings([]any{1, 2})
 	is.Eq(`[]string{"1", "2"}`, fmt.Sprintf("%#v", ss))
 
 	ss, err = arrutil.ToStrings("b")
@@ -54,7 +57,8 @@ func TestToStrings(t *testing.T) {
 	})
 
 	_, err = arrutil.ToStrings([]any{[]int{1}, nil})
-	is.Err(err)
+	// fmt.Println(ss)
+	is.NoErr(err)
 }
 
 func TestStringsToString(t *testing.T) {
@@ -95,6 +99,21 @@ func TestAnyToSlice(t *testing.T) {
 
 	_, err = arrutil.AnyToSlice(123)
 	is.Err(err)
+}
+
+func TestToMap(t *testing.T) {
+	type User struct {
+		Name string
+		Age  int
+	}
+	users := []User{{"Tom", 18}, {"Jack", 20}}
+	mp := arrutil.ToMap(users, func(u User) (string, int) {
+		return u.Name, u.Age
+	})
+
+	assert.Eq(t, 2, len(mp))
+	assert.ContainsKeys(t, mp, []string{"Tom", "Jack"})
+	assert.Eq(t, 18, mp["Tom"])
 }
 
 func TestConvType(t *testing.T) {

@@ -1,10 +1,11 @@
 package fsutil
 
 import (
+	"fmt"
 	"io"
 	"os"
 
-	"github.com/gookit/goutil/basefn"
+	"github.com/gookit/goutil/x/basefn"
 )
 
 // ************************************************************
@@ -74,9 +75,14 @@ func SaveFile(filePath string, data any, optFns ...OpenOptionFunc) error {
 	return WriteFile(filePath, data, opt.Perm, opt.Flag)
 }
 
-// PutContents create file and write contents to file at once.
+// WriteData Quick write any data to file, alias of PutContents
+func WriteData(filePath string, data any, fileFlag ...int) (int, error) {
+	return PutContents(filePath, data, fileFlag...)
+}
+
+// PutContents create file and write contents to file at once. Will auto create dir
 //
-// data type allow: string, []byte, io.Reader. will auto create dir.
+// data type allows: string, []byte, io.Reader
 //
 // Tip: file flag default is FsCWTFlags (override write)
 //
@@ -92,9 +98,9 @@ func PutContents(filePath string, data any, fileFlag ...int) (int, error) {
 	return WriteOSFile(f, data)
 }
 
-// WriteFile create file and write contents to file, can set perm for file.
+// WriteFile create file and write contents to file, can set perm for a file.
 //
-// data type allow: string, []byte, io.Reader
+// data type allows: string, []byte, io.Reader
 //
 // Tip: file flag default is FsCWTFlags (override write)
 //
@@ -114,7 +120,7 @@ func WriteFile(filePath string, data any, perm os.FileMode, fileFlag ...int) err
 
 // WriteOSFile write data to give os.File, then close file.
 //
-// data type allow: string, []byte, io.Reader
+// data type allows: string, []byte, io.Reader
 func WriteOSFile(f *os.File, data any) (n int, err error) {
 	switch typData := data.(type) {
 	case []byte:
@@ -179,4 +185,17 @@ func UpdateContents(filePath string, handleFn func(bs []byte) []byte) error {
 		err = err1
 	}
 	return err
+}
+
+// CreateSymlink creates a symbolic link
+func CreateSymlink(target, linkPath string) error {
+	// Check if the link already exists
+	if IsFile(linkPath) {
+		// Remove existing link/file
+		if err := os.Remove(linkPath); err != nil {
+			return fmt.Errorf("failed to remove existing symlink: %w", err)
+		}
+	}
+
+	return os.Symlink(target, linkPath)
 }

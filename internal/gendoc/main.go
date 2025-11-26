@@ -9,14 +9,13 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gookit/color"
 	"github.com/gookit/goutil"
 	"github.com/gookit/goutil/arrutil"
 	"github.com/gookit/goutil/cflag"
-	"github.com/gookit/goutil/dump"
 	"github.com/gookit/goutil/fsutil"
-	"github.com/gookit/goutil/stdio"
 	"github.com/gookit/goutil/strutil"
+	"github.com/gookit/goutil/x/ccolor"
+	"github.com/gookit/goutil/x/stdio"
 )
 
 var (
@@ -26,22 +25,26 @@ var (
 		"netutil",
 		"comdef",
 		"internal",
+		"syncs",
 	}
 	nameMap = map[string]string{
 		"arr":     "array and Slice",
-		"str":     "strings",
+		"str":     "string Utils",
 		"byte":    "Bytes Utils",
 		"sys":     "system Utils",
 		"math":    "math/Number",
 		"fs":      "file System",
 		"fmt":     "format Utils",
 		"test":    "testing Utils",
-		"dump":    "dumper",
-		"structs": "structs",
+		"dump":    "var Dumper",
+		"structs": "struct Utils",
 		"json":    "JSON Utils",
-		"cli":     "CLI/Console",
+		"cli":     "CLI Utils",
 		"env":     "ENV/Environment",
-		"goinfo":  "Go Info",
+	}
+	// show details in readme markdown.
+	showDetails = []string{
+		"jsonutil",
 	}
 
 	// allowLang = map[string]int{
@@ -96,14 +99,12 @@ var (
 	// collected sub package names.
 	// short name => full name.
 	pkgNames = make(map[string]string, 16)
-
-	partDocTplS = "part-%s-s%s.md"
-	partDocTplE = "part-%s%s.md"
 )
 
 // go run ./internal/gendoc -h
 // go run ./internal/gendoc
 func main() {
+	cflag.SetDebug(true)
 	cmd := cflag.New(func(c *cflag.CFlags) {
 		c.Version = "0.1.2"
 		c.Desc = "Collect and dump all exported functions for goutil"
@@ -114,12 +115,12 @@ func main() {
 	cmd.StringVar(&genOpts.output,
 		"output",
 		"./metadata.log",
-		"the result output file. if is 'stdout', will direct print it;;o",
+		"the result output target.、n if is 'stdout', will direct print it;;o",
 	)
 	cmd.StringVar(&genOpts.tplDir,
 		"tpl",
-		"./internal/template",
-		"template file dir, use for generate, will inject metadata to the template.\nsee ./internal/template/*.tpl;;t",
+		"./internal/gendoc/template",
+		"template file dir, use for generate, will inject metadata to the template.\nsee ./internal/gendoc/template/*.tpl;;t",
 	)
 	cmd.StringVar(&genOpts.template, "template", "", "the template file")
 
@@ -128,12 +129,12 @@ func main() {
   go run ./internal/gendoc -o stdout
   go run ./internal/gendoc -o stdout -l zh-CN
   go run ./internal/gendoc -o README.md
-  go run ./internal/gendoc -o README.zh-CN.md -l zh-CN
+  go run ./internal/gendoc -o README.zh-CN.md
 `
 	cmd.MustParse(nil)
 }
 
-func handle(c *cflag.CFlags) error {
+func handle(_ *cflag.CFlags) error {
 	ms, err := filepath.Glob(genOpts.baseDir + "*/*.go")
 	goutil.PanicIfErr(err)
 
@@ -144,10 +145,15 @@ func handle(c *cflag.CFlags) error {
 		out = os.Stdout
 	} else {
 		toFile = true
+		// auto detect language
+		if strings.Contains(genOpts.output, "zh-CN") {
+			genOpts.lang = "zh-CN"
+		}
+
 		out, err = os.OpenFile(genOpts.output, fsutil.FsCWTFlags, fsutil.DefaultFilePerm)
 		goutil.PanicIfErr(err)
 
-		// close after handle
+		// close after a handle
 		defer out.(*os.File).Close()
 	}
 
@@ -156,7 +162,7 @@ func handle(c *cflag.CFlags) error {
 	var tplBody []byte
 	if genOpts.tplDir != "" {
 		tplFile := genOpts.tplFilepath("")
-		color.Info.Println("- read template file contents from", tplFile)
+		ccolor.Magentaln("😁  Read template contents from", tplFile)
 		tplBody = fsutil.MustReadFile(tplFile)
 	}
 
@@ -173,25 +179,25 @@ func handle(c *cflag.CFlags) error {
 	}
 
 	goutil.PanicIfErr(err)
-
-	color.Cyanln("Collected packages:")
-	dump.Clear(pkgNames)
+	// ccolor.Cyanln("Collected packages:")
+	// dump.Clear(pkgNames)
 
 	if toFile {
-		color.Info.Println("OK. write result to the", genOpts.output)
+		ccolor.Successln("🎉🎉  OK. write result to the", genOpts.output)
 	}
 	return nil
 }
 
 func collectPgkFunc(ms []string, basePkg string) *bytes.Buffer {
-	var name, dirname string
+	// name - format dirname, will remove suffix: util
+	var name, title, dirname, prevName string
 	var pkgFuncs = make(map[string][]string)
 
 	// match func
 	reg := regexp.MustCompile(`func [A-Z]\w+.*`)
 	buf := new(bytes.Buffer)
 
-	color.Info.Println("- find and collect exported functions...")
+	ccolor.Infoln("- find and collect exported functions...")
 	for _, filename := range ms { // for each go file
 		// "jsonutil/jsonutil_test.go"
 		// "sysutil/sysutil_windows.go"
@@ -202,13 +208,14 @@ func collectPgkFunc(ms []string, basePkg string) *bytes.Buffer {
 			continue
 		}
 
+		filename = fsutil.UnixPath(filename)
 		idx := strings.IndexRune(filename, '/')
 		dir := filename[:idx] // sub pkg name.
-
 		if arrutil.StringsHas(hidden, dir) {
 			continue
 		}
 
+		dirname = dir
 		pkgPath := basePkg + "/" + dir
 		pkgNames[dir] = pkgPath
 
@@ -217,30 +224,38 @@ func collectPgkFunc(ms []string, basePkg string) *bytes.Buffer {
 		} else {
 			if len(pkgFuncs) > 0 { // end of prev package.
 				bufWriteln(buf, "```")
-
+				if !arrutil.StringsHas(showDetails, prevName) {
+					bufWriteln(buf, "</details>")
+				}
+				buf.WriteByte('\n')
 				// load prev sub-pkg doc file.
-				bufWriteDoc(buf, partDocTplE, dirname)
+				bufWriteDoc(buf, "end", prevName)
 			}
 
-			dirname = dir
 			name = dir
 			if strings.HasSuffix(dir, "util") {
 				name = dir[:len(dir)-4]
 			}
-
+			title = dir
 			if setTitle, ok := nameMap[name]; ok {
-				name = setTitle
+				title = setTitle
 			}
 
 			// now: name is package name.
-			bufWriteln(buf, "\n###", strutil.UpperFirst(name))
+			bufWriteln(buf, "\n###", strutil.UpperFirst(title))
 			bufWritef(buf, "\n> Package `%s`\n\n", pkgPath)
 			pkgFuncs[pkgPath] = []string{"xx"}
+			ccolor.Cyanf("- collect package: %s\n", pkgPath)
 
 			// load sub-pkg start doc file.
-			bufWriteDoc(buf, partDocTplS, name)
-
+			bufWriteDoc(buf, "start", dirname)
+			// 隐藏详情
+			if !arrutil.StringsHas(showDetails, dirname) {
+				bufWriteln(buf, "<details><summary>Click to see functions 👈</summary>")
+				buf.WriteByte('\n')
+			}
 			bufWriteln(buf, "```go")
+			prevName = dirname
 		}
 
 		// read contents
@@ -250,9 +265,9 @@ func collectPgkFunc(ms []string, basePkg string) *bytes.Buffer {
 		if len(lines) > 0 {
 			bufWriteln(buf, "// source at", filename)
 			for _, line := range lines {
-				idx := strings.IndexByte(line, '{')
-				if idx > 0 {
-					bufWriteln(buf, strings.TrimSpace(line[:idx]))
+				pos := strings.IndexByte(line, '{')
+				if pos > 0 {
+					bufWriteln(buf, strings.TrimSpace(line[:pos]))
 				} else {
 					bufWriteln(buf, strings.TrimSpace(line))
 				}
@@ -262,8 +277,12 @@ func collectPgkFunc(ms []string, basePkg string) *bytes.Buffer {
 
 	if len(pkgFuncs) > 0 {
 		bufWriteln(buf, "```")
+		if !arrutil.StringsHas(showDetails, dirname) {
+			bufWriteln(buf, "</details>")
+		}
+		buf.WriteByte('\n')
 		// load last sub-pkg doc file.
-		bufWriteDoc(buf, partDocTplE, dirname)
+		bufWriteDoc(buf, "end", dirname)
 	}
 
 	return buf
@@ -277,29 +296,35 @@ func bufWriteln(buf *bytes.Buffer, a ...any) {
 	_, _ = fmt.Fprintln(buf, a...)
 }
 
-func bufWriteDoc(buf *bytes.Buffer, partNameTpl, pkgName string) {
-	var lang string
-	if genOpts.lang != "en" {
-		lang = "." + genOpts.lang
+func bufWriteDoc(buf *bytes.Buffer, partType, pkgName string) {
+	var lang, suffix string
+	if partType == "start" || partType == "s" {
+		suffix = "-s"
 	}
 
-	filename := fmt.Sprintf(partNameTpl, pkgName, lang)
+	enFilename := fmt.Sprintf("readme-parts/%s%s.md", pkgName, suffix)
+	lnFilename := enFilename
 
-	if !doWriteDoc2buf(buf, filename) {
-		// fallback use en docs
-		filename = fmt.Sprintf(partNameTpl, pkgName, "")
-		doWriteDoc2buf(buf, filename)
+	if genOpts.lang != "en" {
+		lang = "." + genOpts.lang
+		lnFilename = fmt.Sprintf("readme-parts/%s/%s%s.md", lang, pkgName, suffix)
+	}
+
+	// fallback use en docs
+	if !doWriteDoc2buf(buf, lnFilename) {
+		doWriteDoc2buf(buf, enFilename)
 	}
 }
 
 func doWriteDoc2buf(buf *bytes.Buffer, filename string) bool {
 	partFile := genOpts.tplDir + "/" + filename
-	// color.Infoln("- try read part readme from", partFile)
+	// ccolor.Infoln("- try read part readme from", partFile)
 	partBody := fsutil.ReadExistFile(partFile)
 
 	if len(partBody) > 0 {
-		color.Infoln("- find and inject sub-package doc:", filename)
-		stdio.QuietFprintln(buf, string(partBody))
+		ccolor.Infoln("- find and inject sub-package doc:", filename)
+		stdio.Fprintln(buf, string(partBody))
+		buf.WriteByte('\n')
 		return true
 	}
 

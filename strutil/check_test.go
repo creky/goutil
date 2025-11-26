@@ -7,6 +7,64 @@ import (
 	"github.com/gookit/goutil/testutil/assert"
 )
 
+func TestIsInt(t *testing.T) {
+	// IsInt
+	assert.True(t, strutil.IsInt("123"))
+	assert.True(t, strutil.IsInt("0"))
+	assert.True(t, strutil.IsInt("456789"))
+	assert.True(t, strutil.IsInt("-123"))
+
+	assert.False(t, strutil.IsInt("123.45"))
+	assert.False(t, strutil.IsInt("abc"))
+	assert.False(t, strutil.IsInt("123abc"))
+	assert.False(t, strutil.IsInt(""))
+
+	// IsUint
+	assert.True(t, strutil.IsUint("123"))
+	assert.True(t, strutil.IsUint("0"))
+	assert.True(t, strutil.IsUint("456789"))
+
+	assert.False(t, strutil.IsUint("-123"))
+	assert.False(t, strutil.IsUint("123.45"))
+	assert.False(t, strutil.IsUint("ab3"))
+	assert.False(t, strutil.IsUint(""))
+}
+
+func TestIsFloat(t *testing.T) {
+	assert.True(t, strutil.IsFloat("123.45"))
+	assert.True(t, strutil.IsFloat("-123.45"))
+	assert.True(t, strutil.IsFloat("+123.45"))
+	assert.True(t, strutil.IsFloat("0.123"))
+	assert.True(t, strutil.IsFloat(".123"))
+	assert.True(t, strutil.IsFloat("123.0"))
+	assert.True(t, strutil.IsFloat("0"))
+
+	assert.True(t, strutil.IsFloat("123"))
+	assert.False(t, strutil.IsFloat("abc"))
+	assert.False(t, strutil.IsFloat("123abc"))
+	assert.False(t, strutil.IsFloat(""))
+}
+
+func TestIsNumeric(t *testing.T) {
+	// IsNumeric
+	assert.True(t, strutil.IsNumeric("0"))
+	assert.True(t, strutil.IsNumeric("234"))
+	assert.True(t, strutil.IsNumeric("-234"))
+	assert.True(t, strutil.IsNumeric("23.4"))
+	assert.True(t, strutil.IsNumeric("-23.4"))
+	assert.False(t, strutil.IsNumeric(""))
+	assert.False(t, strutil.IsNumeric("a34"))
+
+	// IsPositiveNum
+	assert.True(t, strutil.IsPositiveNum("0.0"))
+	assert.True(t, strutil.IsPositiveNum("234"))
+	assert.True(t, strutil.IsPositiveNum("23.4"))
+	assert.False(t, strutil.IsPositiveNum("-23.4"))
+	assert.False(t, strutil.IsPositiveNum("-234"))
+	assert.False(t, strutil.IsPositiveNum("a34"))
+	assert.False(t, strutil.IsPositiveNum(""))
+}
+
 func TestIsAlphabet(t *testing.T) {
 	assert.True(t, strutil.IsNumChar('9'))
 	assert.False(t, strutil.IsNumChar('A'))
@@ -18,9 +76,6 @@ func TestIsAlphabet(t *testing.T) {
 	assert.True(t, strutil.IsAlphabet('a'))
 	assert.True(t, strutil.IsAlphabet('Z'))
 	assert.True(t, strutil.IsAlphabet('z'))
-
-	assert.True(t, strutil.IsNumeric("234"))
-	assert.False(t, strutil.IsNumeric("a34"))
 }
 
 func TestIsAlphaNum(t *testing.T) {
@@ -38,6 +93,14 @@ func TestNoCaseEq(t *testing.T) {
 	assert.True(t, strutil.NoCaseEq("A", "a"))
 	assert.True(t, strutil.NoCaseEq("Ab", "aB"))
 	assert.False(t, strutil.Equal("a", "b"))
+}
+
+func TestIsUpper(t *testing.T) {
+	assert.True(t, strutil.IsUpper("ABC"))
+	assert.False(t, strutil.IsUpper("aBC"))
+
+	assert.False(t, strutil.IsLower("aBC"))
+	assert.True(t, strutil.IsLower("abc"))
 }
 
 func TestStrPos(t *testing.T) {
@@ -136,6 +199,25 @@ func TestIsVersion(t *testing.T) {
 	assert.True(t, strutil.IsVersion("1.2.0-alpha1"))
 }
 
+func TestIsVarName(t *testing.T) {
+	assert.True(t, strutil.IsVarName("a"))
+	assert.True(t, strutil.IsVarName("a12"))
+	assert.True(t, strutil.IsVarName("abc"))
+	assert.True(t, strutil.IsVarName("Abc"))
+	assert.True(t, strutil.IsVarName("ab_c"))
+
+	assert.False(t, strutil.IsVarName(" abc"))
+	assert.False(t, strutil.IsVarName("+"))
+}
+
+func TestIsEnvName(t *testing.T) {
+	assert.False(t, strutil.IsEnvName("a"))
+	assert.False(t, strutil.IsEnvName("APP_aa"))
+
+	assert.True(t, strutil.IsEnvName("SHELL"))
+	assert.True(t, strutil.IsEnvName("APP_EN"))
+}
+
 func TestIEqual(t *testing.T) {
 	assert.False(t, strutil.IEqual("h3ab2c", "d"))
 	assert.False(t, strutil.IEqual("ab", "ac"))
@@ -151,18 +233,61 @@ func TestIContains(t *testing.T) {
 
 	assert.True(t, strutil.ContainsByte("H3AB2C", 'A'))
 	assert.False(t, strutil.ContainsByte("H3AB2C", 'a'))
+
+	assert.True(t, strutil.ContainsByteOne("H3AB2C", []byte("A")))
+	assert.True(t, strutil.ContainsByteOne("H3AB2C", []byte("DB")))
+	assert.False(t, strutil.ContainsByteOne("H3AB2C", []byte("D")))
 }
 
 func TestHasOneSub(t *testing.T) {
 	assert.False(t, strutil.ContainsOne("h3ab2c", []string{"d"}))
 	assert.False(t, strutil.HasOneSub("h3ab2c", []string{"d"}))
-	assert.True(t, strutil.HasOneSub("h3ab2c", []string{"ab"}))
+	assert.False(t, strutil.HasOneSub("h3AB2c", []string{"ab"}))
+	assert.True(t, strutil.HasOneSub("h3AB2c", []string{"AB"}))
+
+	// ignore-case
+	assert.True(t, strutil.IContainsOne("h3AB2c", []string{"ab"}))
+	assert.False(t, strutil.IContainsOne("h3AB2c", []string{"NO"}))
 }
 
 func TestHasAllSubs(t *testing.T) {
 	assert.False(t, strutil.HasAllSubs("h3ab2c", []string{"a", "d"}))
+	assert.False(t, strutil.ContainsAll("h3AB2c", []string{"A", "b"}))
 	assert.True(t, strutil.HasAllSubs("h3ab2c", []string{"a", "b"}))
 	assert.True(t, strutil.ContainsAll("h3ab2c", []string{"a", "b"}))
+
+	// ignore-case
+	assert.True(t, strutil.IContainsAll("h3AB2c", []string{"A", "b"}))
+	assert.False(t, strutil.IContainsAll("h3AB2c", []string{"A", "NO"}))
+}
+
+func TestCompare(t *testing.T) {
+	versions := []struct{ a, b string }{
+		{"1.0.221.9289", "1.05.00.0156"},
+		// Go versions
+		{"1", "1.0.1"},
+		{"1.0.1", "1.0.2"},
+		{"1.0.2", "1.0.3"},
+		{"1.0.3", "1.1"},
+		{"1.1", "1.1.1"},
+		{"1.1.1", "1.1.2"},
+		{"1.1.2", "1.2"},
+	}
+	for _, version := range versions {
+		assert.True(t, strutil.Compare(version.a, version.b, "<"), version.a+"<"+version.b)
+		assert.True(t, strutil.Compare(version.a, version.b, "<="), version.a+"<="+version.b)
+		assert.True(t, strutil.Compare(version.b, version.a, ">"), version.a+">"+version.b)
+		assert.True(t, strutil.Compare(version.b, version.a, ">="), version.a+">="+version.b)
+	}
+
+	assert.True(t, strutil.Compare("1.0", "1.0", ""))
+	assert.True(t, strutil.Compare("1.0", "1.0", "="))
+
+	assert.True(t, strutil.Compare("1.0", "2.0", "!="))
+	assert.False(t, strutil.Compare("2020-12-16", "2021-12-17", ">="))
+
+	// diff with VersionCompare
+	assert.False(t, strutil.Compare("1.11", "1.2", ">"))
 }
 
 func TestVersionCompare(t *testing.T) {
@@ -184,11 +309,12 @@ func TestVersionCompare(t *testing.T) {
 		assert.True(t, strutil.VersionCompare(version.b, version.a, ">="), version.a+">="+version.b)
 	}
 
-	assert.True(t, strutil.VersionCompare("1.0", "1.0", ""))
 	assert.True(t, strutil.VersionCompare("1.0", "1.0", "="))
-	assert.True(t, strutil.Compare("1.0", "2.0", "!="))
+	assert.True(t, strutil.VersionCompare("1.0", "2.0", "!="))
+	assert.False(t, strutil.VersionCompare("1.0", "1.0", ""))
 
-	assert.False(t, strutil.Compare("2020-12-16", "2021-12-17", ">="))
+	assert.True(t, strutil.VersionCompare("1.11", "1.2", ">"))
+	assert.True(t, strutil.VersionCompare("1.11.3", "1.2.34", ">"))
 }
 
 func TestGlobMatch(t *testing.T) {

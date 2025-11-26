@@ -1,11 +1,12 @@
 package dump
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 
-	"github.com/gookit/color"
 	"github.com/gookit/goutil/testutil/assert"
+	"github.com/gookit/goutil/x/ccolor"
 )
 
 func TestSkipPrivate(t *testing.T) {
@@ -53,18 +54,18 @@ func TestSkipNilField(t *testing.T) {
 }
 
 func TestWithoutColor(t *testing.T) {
-	ol := color.ForceColor()
-	defer func() {
-		color.ForceSetColorLevel(ol)
-	}()
+	ccolor.ForceEnableColor()
+	defer ccolor.RevertColorSupport()
 
-	buf := newBuffer()
+	buf := new(bytes.Buffer)
+
 	dumper := newStd().WithOptions(WithoutOutput(buf), WithoutPosition(), WithCallerSkip(2))
-
 	dumper.Println("a string")
 	assert.Equal(t, "string(\"\x1b[0;32ma string\x1b[0m\"), \x1b[0;90m#len=8\x1b[0m\n", buf.String())
 
 	buf.Reset()
+
+	// without color
 	dumper.WithOptions(SkipNilField(), WithoutColor())
 	dumper.Println("a string")
 	assert.Equal(t, "string(\"a string\"), #len=8\n", buf.String())

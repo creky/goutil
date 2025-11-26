@@ -1,0 +1,194 @@
+package capp_test
+
+import (
+	"bytes"
+	"errors"
+	"os"
+	"strconv"
+	"testing"
+
+	"github.com/gookit/goutil/cflag/capp"
+	"github.com/gookit/goutil/dump"
+	"github.com/gookit/goutil/strutil"
+	"github.com/gookit/goutil/testutil/assert"
+)
+
+func ExampleNewApp() {
+	app := capp.NewApp()
+	app.Desc = "this is my cli application"
+	app.Version = "1.0.2"
+
+	var c1Opts = struct {
+		age  int
+		name string
+	}{}
+
+	c1 := capp.NewCmd("demo", "this is a demo command")
+	c1.OnAdd = func(c *capp.Cmd) {
+		c.IntVar(&c1Opts.age, "age", 0, "this is a int option;;a")
+		c.StringVar(&c1Opts.name, "name", "", "this is a string option and required;true")
+
+		c.AddArg("arg1", "this is arg1", true, nil)
+		c.AddArg("arg2", "this is arg2", false, nil)
+	}
+
+	c1.Func = func(c *capp.Cmd) error {
+		dump.P(c1Opts, c.Args())
+		return nil
+	}
+
+	var c2Opts = struct {
+		str1 string
+		lOpt string
+		bol  bool
+	}{}
+
+	c2 := capp.NewCmd("other", "this is another demo command")
+	{
+		c2.StringVar(&c2Opts.str1, "str1", "def-val", "this is a string option with default value;;s")
+		c2.StringVar(&c2Opts.lOpt, "long-opt", "", "this is a string option with shorts;;lo")
+
+		c2.Func = func(c *capp.Cmd) error {
+			dump.P(c2Opts)
+			return nil
+		}
+	}
+
+	app.Add(c1, c2)
+	app.Run()
+}
+
+func TestApp_Run(t *testing.T) {
+	app := capp.NewApp(func(app *capp.App) {
+		app.Name = "myapp"
+		app.Desc = "this is my cli application"
+		app.Version = "1.0.2"
+	})
+
+	// test invalid
+	assert.Panics(t, func() {
+		app.Add(capp.NewCmd("", "empty name"))
+	})
+
+	// add command
+	var c1Opts = struct {
+		age  int
+		name string
+	}{}
+
+	c1 := capp.NewCmd("demo", "this is a demo command")
+	c1.OnAdd = func(c *capp.Cmd) {
+		c.IntVar(&c1Opts.age, "age", 0, "this is a int option;;a")
+		c.StringVar(&c1Opts.name, "name", "", "this is a string option and required;true")
+
+		c.AddArg("arg1", "this is arg1", true, nil)
+		c.AddArg("arg2", "this is arg2", false, nil)
+	}
+	c1.Config(func(c *capp.Cmd) {
+		c.Aliases = []string{"d1"}
+		c.Func = func(c *capp.Cmd) error {
+			dump.P(c1Opts, c.Args())
+			return nil
+		}
+	})
+
+	app.Add(c1)
+
+	// repeat name
+	assert.Panics(t, func() {
+		app.Add(c1)
+	})
+
+	// add cmd by struct
+	app.Add(&capp.Cmd{
+		Name: "demo2",
+		Desc: "this is demo2 command",
+		Func: func(c *capp.Cmd) error {
+			dump.P("hi, on demo2 command")
+			return nil
+		},
+	})
+
+	// show help1
+	osArgs := os.Args
+	os.Args = []string{"./myapp"}
+	app.AfterHelpBuild = func(buf *strutil.Buffer) {
+		help := buf.String()
+		assert.StrContains(t, help, "--help")
+		assert.StrContains(t, help, "demo")
+		assert.StrContains(t, help, "This is a demo command")
+	}
+	app.Run()
+	os.Args = osArgs
+
+	// show help2
+	buf := new(bytes.Buffer)
+	app.HelpWriter = buf
+	err := app.RunWithArgs([]string{"--help"})
+	assert.NoErr(t, err)
+
+	help := buf.String()
+	assert.StrContains(t, help, "--help")
+	assert.StrContains(t, help, "demo")
+	assert.StrContains(t, help, "This is a demo command")
+
+	// run ... error
+	t.Run("not exists command", func(t *testing.T) {
+		err = app.RunWithArgs([]string{"notExists"})
+		assert.ErrMsg(t, err, `input not exists command "notExists"`)
+	})
+
+	t.Run("invalid flag", func(t *testing.T) {
+		err = app.RunWithArgs([]string{"--invalid"})
+		assert.ErrMsg(t, err, `flag provided but not defined: -invalid`)
+	})
+
+	// run
+	t.Run("run demo command", func(t *testing.T) {
+		err = app.RunWithArgs([]string{"demo", "-a", "230", "--name", "inhere", "val1"})
+		assert.NoErr(t, err)
+		assert.Eq(t, 230, c1Opts.age)
+		assert.Eq(t, "inhere", c1Opts.name)
+		assert.Eq(t, "val1", c1.Arg("arg1").String())
+	})
+}
+
+func TestApp_Run_error(t *testing.T) {
+	app := capp.NewWith("myapp", "1.0.2", "this is my cli application")
+
+	app.Add(capp.NewCmd("demo", "this is a demo command", func(c *capp.Cmd) error {
+		return errors.New("command run error")
+	}))
+
+	assert.ErrMsg(t, app.RunWithArgs([]string{"demo"}), "command run error")
+}
+
+func TestCmd_Run(t *testing.T) {
+	var c1Opts = struct {
+		age  int
+		name string
+	}{}
+
+	var buf bytes.Buffer
+
+	cmd := capp.NewCmd("demo", "this is a demo command", func(c *capp.Cmd) error {
+		buf.WriteString("name=" + c1Opts.name)
+		buf.WriteString("age=" + strconv.Itoa(c1Opts.age))
+		buf.WriteString("arg1=")
+		buf.WriteString(c.Arg("arg1").String())
+		return nil
+	})
+
+	cmd.IntVar(&c1Opts.age, "age", 0, "this is a int option;;a")
+	cmd.StringVar(&c1Opts.name, "name", "", "this is a string option and required;true")
+	cmd.AddArg("arg1", "this is arg1", true, nil)
+	// show help
+	cmd.MustParse([]string{"--help"})
+
+	// run
+	cmd.MustRun([]string{"--name", "inhere", "arg1-value"})
+	ret := buf.String()
+	assert.StrContains(t, ret, "name=inhere")
+	assert.StrContains(t, ret, "age=0")
+	assert.StrContains(t, ret, "arg1=arg1-value")
+}

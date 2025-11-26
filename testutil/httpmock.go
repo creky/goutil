@@ -2,35 +2,33 @@ package testutil
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+
+	"github.com/gookit/goutil/netutil/httpreq"
+	"github.com/gookit/goutil/strutil"
+	"github.com/gookit/goutil/x/basefn"
 )
 
 // some data.
 type (
-	// M short name for map
+	// M short name for a string-map
 	M map[string]string
 	// MD simple request data
 	MD struct {
 		// Headers headers
 		Headers M
-		// Body body. eg: strings.NewReader("name=inhere")
+		// Body reader. eg: strings.NewReader("name=inhere")
 		Body io.Reader
-		// BodyString quick add body.
+		// BodyString quick adds string body.
 		BodyString string
 		// BeforeSend callback
 		BeforeSend func(req *http.Request)
 	}
 )
-
-// NewHttpRequest for http testing, alias of NewHTTPRequest()
-//
-// Deprecated: use NewHTTPRequest() instead.
-func NewHttpRequest(method, path string, data *MD) *http.Request {
-	return NewHTTPRequest(method, path, data)
-}
 
 // NewHTTPRequest quick create request for http testing
 // Usage:
@@ -116,18 +114,57 @@ type EchoReply struct {
 	URL    string `json:"url"`
 	Method string `json:"method"`
 	// Query data
-	Query   map[string]any `json:"query,omitempty"`
+	Query map[string]any `json:"query,omitempty"`
+	// Headers data.
+	//
+	// If value is one elem, will return string, otherwise will return []string
+	//
+	// Example:
+	// 	map[string]any{
+	//		"Connection": "close",
+	//		"Vary": []string{"Accept-Encoding", "Accept-Encoding"},
+	//	}
 	Headers map[string]any `json:"headers,omitempty"`
-	Form    map[string]any `json:"form,omitempty"`
-	// Body data string
-	Body  string         `json:"body,omitempty"`
-	JSON  any            `json:"json,omitempty"`
+	// Form data.
+	//
+	// If value is one elem, will return string, otherwise will return []string
+	Form map[string]any `json:"form,omitempty"`
+	// Body data string from request body
+	Body string `json:"body,omitempty"`
+	// JSON data on Content-Type: application/json
+	//  - 通常是 map[string]any 类型数据
+	JSON any `json:"json,omitempty"`
+	// Files data.
 	Files map[string]any `json:"files,omitempty"`
 }
 
 // ContentType get content type
 func (r *EchoReply) ContentType() string {
 	return r.Headers["Content-Type"].(string)
+}
+
+// JSONMap assert JSON data to map[string]any
+func (r *EchoReply) JSONMap() map[string]any {
+	if r.JSON == nil {
+		return nil
+	}
+	if m, ok := r.JSON.(map[string]any); ok {
+		return m
+	}
+	return nil
+}
+
+// HeaderString get header value as string
+func (r *EchoReply) HeaderString(name string) string {
+	if r.Headers == nil {
+		return ""
+	}
+
+	val := r.Headers[name]
+	if s, ok := val.(string); ok {
+		return s
+	}
+	return fmt.Sprint(val)
 }
 
 // EchoServer for testing http request.
@@ -145,6 +182,57 @@ func (s *EchoServer) HTTPHost() string {
 	return "http://" + s.HostAddr()
 }
 
+// PrintHttpHost print host address to console
+func (s *EchoServer) PrintHttpHost() string {
+	baseUrl := s.HTTPHost()
+	fmt.Println("Test server listen on:", baseUrl)
+	return baseUrl
+}
+
+// HandleRequest handle request
+func (s *EchoServer) handleRequest(w http.ResponseWriter, r *http.Request) {
+	pathName := strings.Trim(r.URL.Path, "/")
+	if !strings.Contains(pathName, "/") {
+		switch pathName {
+		case "404": // eg. GET /404
+			w.WriteHeader(http.StatusNotFound)
+			return
+		case "500": // eg. GET /500
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		default:
+			// custom reply status code. eg: /status-{code}
+			if strings.HasPrefix(pathName, "status-") {
+				stCode := pathName[7:]
+				if codeVal := strutil.SafeInt(stCode); codeVal > 0 {
+					w.WriteHeader(codeVal)
+					return
+				}
+			} else {
+				// 405 eg: "GET /post"
+				pathMethod := strings.ToUpper(pathName)
+				if httpreq.IsValidMethod(pathMethod) && pathMethod != r.Method {
+					w.WriteHeader(http.StatusMethodNotAllowed)
+					return
+				}
+			}
+		}
+	}
+
+	// default: 200 ok
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Server", "goutil/echo-server")
+	w.WriteHeader(http.StatusOK)
+	// w.Header().Set("Connection", "close")
+
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	basefn.MustOK(enc.Encode(BuildEchoReply(r)))
+}
+
+// MockHttpServer create an echo server for testing. alias of NewEchoServer
+func MockHttpServer() *EchoServer { return NewEchoServer() }
+
 // NewEchoServer create an echo server for testing.
 //
 // Usage on testing:
@@ -155,34 +243,20 @@ func (s *EchoServer) HTTPHost() string {
 //		// create server
 //		s := testutil.NewEchoServer()
 //		defer s.Close()
-//		testSrvAddr = s.HTTPHost()
-//		fmt.Println("Test server listen on:", testSrvAddr)
+//		testSrvAddr = s.PrintHttpHost()
 //
 //		m.Run()
 //	}
 //
 //	// in a test case ...
-//	res := http.Get(testSrvAddr)
+//	res := http.Get(testSrvAddr + "/get/some-one")
 //	rpl := testutil.ParseRespToReply(res)
 //	// assert ...
 func NewEchoServer() *EchoServer {
-	hs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.Header().Set("Server", "goutil/echo-server")
-		w.WriteHeader(http.StatusOK)
-		// w.Header().Set("Connection", "close")
+	es := &EchoServer{}
+	es.Server = httptest.NewServer(http.HandlerFunc(es.handleRequest))
 
-		enc := json.NewEncoder(w)
-		enc.SetIndent("", "  ")
-		err := enc.Encode(BuildEchoReply(r))
-		if err != nil {
-			_, _ = w.Write([]byte(`{"error": "encode error"}`))
-		}
-	}))
-
-	return &EchoServer{
-		Server: hs,
-	}
+	return es
 }
 
 // BuildEchoReply build reply body data

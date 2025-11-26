@@ -1,17 +1,14 @@
 // Package cflag Wraps and extends go `flag.FlagSet` to build simple command line applications
 //
 // - Support auto render a pretty help panel
-//
 // - Allow to add shortcuts for flag option
-//
 // - Allow binding named arguments
-//
 // - Allow set required for argument or option
-//
 // - Allow set validator for argument or option
 package cflag
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -19,25 +16,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gookit/color"
-	"github.com/gookit/goutil"
-	"github.com/gookit/goutil/basefn"
-	"github.com/gookit/goutil/cliutil"
-	"github.com/gookit/goutil/envutil"
 	"github.com/gookit/goutil/errorx"
 	"github.com/gookit/goutil/mathutil"
-	"github.com/gookit/goutil/stdio"
 	"github.com/gookit/goutil/structs"
 	"github.com/gookit/goutil/strutil"
+	"github.com/gookit/goutil/x/basefn"
+	"github.com/gookit/goutil/x/ccolor"
+	"github.com/gookit/goutil/x/stdio"
 )
-
-// Debug mode
-var Debug = envutil.GetBool("CFLAG_DEBUG")
-
-// SetDebug mode
-func SetDebug(open bool) {
-	Debug = open
-}
 
 // CFlags wrap and extends the go flag.FlagSet
 //
@@ -50,6 +36,7 @@ func SetDebug(open bool) {
 //	cmd.IntVar(&age, "age", 0, "your age;true;a")
 type CFlags struct {
 	*flag.FlagSet
+	prepared bool
 	// bound options.
 	bindOpts map[string]*FlagOpt
 	// shortcuts map for options. eg: n -> name
@@ -66,12 +53,18 @@ type CFlags struct {
 
 	// Desc command description
 	Desc string
+	Usage string // command usage contents
 	// Version command version number
 	Version string
 	// Example command usage examples
 	Example string
 	// LongHelp custom help
 	LongHelp string
+	// HelpOnEmptyArgs show help when not input args
+	HelpOnEmptyArgs bool
+	// HelpFunc custom help render func
+	HelpFunc func(c *CFlags)
+
 	// Func handler for the command
 	Func func(c *CFlags) error
 }
@@ -94,6 +87,23 @@ func New(fns ...func(c *CFlags)) *CFlags {
 	}).WithConfigFn(fns...)
 }
 
+// NewWith create new instance.
+//
+// Usage:
+//
+//	cmd := cflag.NewWith("0.1.2", "this is my cli tool")
+//
+//	// binding opts and args
+//
+//	cmd.Parse(nil)
+func NewWith(name, version, desc string, fns ...func(c *CFlags)) *CFlags {
+	return NewEmpty(func(c *CFlags) {
+		c.Desc = desc
+		c.Version = version
+		c.FlagSet = flag.NewFlagSet(name, flag.ContinueOnError)
+	}).WithConfigFn(fns...)
+}
+
 // NewEmpty instance.
 func NewEmpty(fns ...func(c *CFlags)) *CFlags {
 	c := &CFlags{
@@ -112,17 +122,13 @@ func NewEmpty(fns ...func(c *CFlags)) *CFlags {
 
 // WithDesc for command
 func WithDesc(desc string) func(c *CFlags) {
-	return func(c *CFlags) {
-		c.Desc = desc
+	return func(c *CFlags) { c.Desc = desc }
 	}
-}
 
 // WithVersion for command
 func WithVersion(version string) func(c *CFlags) {
-	return func(c *CFlags) {
-		c.Version = version
+	return func(c *CFlags) { c.Version = version }
 	}
-}
 
 // WithConfigFn for command
 func (c *CFlags) WithConfigFn(fns ...func(c *CFlags)) *CFlags {
@@ -142,7 +148,7 @@ func (c *CFlags) AddValidator(name string, fn OptCheckFn) {
 // ConfigOpt for a flag option
 func (c *CFlags) ConfigOpt(name string, fn func(opt *FlagOpt)) {
 	if c.Lookup(name) == nil {
-		goutil.Panicf("cflag: option '%s' is not registered", name)
+		basefn.Panicf("cflag: option '%s' is not registered", name)
 	}
 
 	// init on not exist
@@ -165,7 +171,7 @@ func (c *CFlags) AddShortcuts(name string, shorts ...string) {
 func (c *CFlags) addShortcuts(name string, shorts []string) {
 	for _, short := range shorts {
 		if regName, ok := c.shortcuts[short]; ok {
-			goutil.Panicf("cflag: shortcut '%s' has been used by option '%s'", short, regName)
+			basefn.Panicf("cflag: shortcut '%s' has been used by option '%s'", short, regName)
 		}
 
 		c.shortcuts[short] = name
@@ -207,20 +213,15 @@ func (c *CFlags) BindArg(arg *FlagArg) {
  *************************************************************/
 
 // QuickRun parse OS flags and run command, will auto handle error
-func (c *CFlags) QuickRun() {
-	c.MustParse(nil)
-}
+func (c *CFlags) QuickRun() { c.MustParse(nil) }
 
 // MustRun parse flags and run command. alias of MustParse()
-func (c *CFlags) MustRun(args []string) {
-	c.MustParse(args)
-}
+func (c *CFlags) MustRun(args []string) { c.MustParse(args) }
 
 // MustParse parse flags and run command, will auto handle error
 func (c *CFlags) MustParse(args []string) {
-	err := c.Parse(args)
-	if err != nil {
-		cliutil.Redln("ERROR:", err)
+	if err := c.Parse(args); err != nil {
+		ccolor.Redln("ERROR:", err)
 	}
 }
 
@@ -234,7 +235,7 @@ func (c *CFlags) Parse(args []string) error {
 
 	defer func() {
 		if err := recover(); err != nil {
-			cliutil.Errorln("ERROR:", err)
+			ccolor.Errorln("ERROR:", err)
 			if Debug {
 				fmt.Println(errorx.Newf("(debug mode)RECOVERD PARSE ERROR: %v", err))
 			}
@@ -242,13 +243,20 @@ func (c *CFlags) Parse(args []string) error {
 	}()
 
 	// prepare
-	if err := c.prepare(); err != nil {
+	if err := c.Prepare(); err != nil {
 		return err
 	}
 
+	// show help when no args
+	if c.HelpOnEmptyArgs && len(args) == 0 {
+		c.showHelp(nil)
+		return nil
+	}
+
 	// do parsing
-	if err := c.doParse(args); err != nil {
-		if err == flag.ErrHelp {
+	if err := c.DoParse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			c.showHelp(nil)
 			return nil // ignore help error
 		}
 		return err
@@ -261,21 +269,28 @@ func (c *CFlags) Parse(args []string) error {
 	return nil
 }
 
-func (c *CFlags) prepare() error {
+// Prepare for parse. (internal use)
+func (c *CFlags) Prepare() error {
+	if c.prepared {
+		return nil
+	}
+	c.prepared = true
+
 	// dont use flag output.
 	c.SetOutput(io.Discard)
 
 	// parse flag usage string
 	c.VisitAll(func(f *flag.Flag) {
 		if regName, ok := c.shortcuts[f.Name]; ok {
-			goutil.Panicf("cflag: name '%s' has been as shortcut by '%s'", f.Name, regName)
+			basefn.Panicf("cflag: name '%s' has been as shortcut by '%s'", f.Name, regName)
 		}
 
 		f.Usage = c.parseFlagUsage(f.Name, f.Usage)
 	})
 
 	// custom something
-	c.FlagSet.Usage = c.ShowHelp
+	// c.FlagSet.Usage = c.ShowHelp
+	c.FlagSet.Usage = func() {}
 	return nil
 }
 
@@ -292,7 +307,7 @@ func (c *CFlags) parseFlagUsage(name, usage string) string {
 		return strutil.UpperFirst(desc)
 	}
 
-	// format: desc;required OR desc;required;shorts
+	// FORMAT: desc;required;shorts
 	parts := strutil.SplitNTrimmed(desc, ";", 3)
 	if ln := len(parts); ln > 1 {
 		// required
@@ -313,8 +328,8 @@ func (c *CFlags) parseFlagUsage(name, usage string) string {
 	return desc
 }
 
-// do parse and validate
-func (c *CFlags) doParse(args []string) error {
+// DoParse parse options and validate, collect args. (internal use)
+func (c *CFlags) DoParse(args []string) error {
 	if len(c.shortcuts) > 0 && len(args) > 0 {
 		args = ReplaceShorts(args, c.shortcuts)
 	}
@@ -382,6 +397,8 @@ func (c *CFlags) bindParsedArgs() error {
 	// collect remain args
 	if lastIdx < argN {
 		c.remainArgs = args[lastIdx:]
+	} else {
+		c.remainArgs = args // all args
 	}
 	return nil
 }
@@ -390,7 +407,7 @@ func (c *CFlags) bindParsedArgs() error {
 func (c *CFlags) Arg(name string) *FlagArg {
 	idx, ok := c.argNames[name]
 	if !ok {
-		goutil.Panicf("cflag: get not binding arg '%s'", name)
+		basefn.Panicf("cflag: get not binding arg '%s'", name)
 	}
 	return c.bindArgs[idx]
 }
@@ -399,9 +416,7 @@ func (c *CFlags) Arg(name string) *FlagArg {
 func (c *CFlags) RemainArgs() []string { return c.remainArgs }
 
 // Name for command
-func (c *CFlags) Name() string {
-	return filepath.Base(c.FlagSet.Name())
-}
+func (c *CFlags) Name() string { return filepath.Base(c.FlagSet.Name()) }
 
 // BinFile path for command
 func (c *CFlags) BinFile() string { return c.FlagSet.Name() }
@@ -421,12 +436,15 @@ func (c *CFlags) helpDesc() string {
 }
 
 // ShowHelp for command
-func (c *CFlags) ShowHelp() {
-	c.showHelp(nil)
-}
+func (c *CFlags) ShowHelp() { c.showHelp(nil) }
 
 // show help for command
 func (c *CFlags) showHelp(err error) {
+	if c.HelpFunc != nil {
+		c.HelpFunc(c)
+		return
+	}
+
 	binName := c.Name()
 	helpVars := map[string]string{
 		"{{cmd}}":     binName,
@@ -436,21 +454,25 @@ func (c *CFlags) showHelp(err error) {
 	}
 
 	buf := new(strutil.Buffer)
-
 	if err != nil {
 		buf.Printf("<error>ERROR:</> %s\n", err.Error())
 	} else {
 		buf.Printf("<cyan>%s</>\n\n", c.helpDesc())
 	}
 
-	buf.Printf("<comment>Usage:</> %s [--Options...] [...CliArgs]\n", binName)
+	if c.Usage != "" {
+		buf.Printf("<comment>Usage:</> %s\n", c.Usage)
+	} else {
+		buf.Printf("<comment>Usage:</> %s [--Options...] [...Arguments]\n", binName)
+	}
 	buf.WriteStr("<comment>Options:</>\n")
 
 	// render options help
-	c.renderOptionsHelp(buf)
+	c.RenderOptionsHelp(buf)
+	buf.WriteStr1Nl("  <green>--help, -h</>" + strings.Repeat("    ", 4) + "Display command help")
 
 	if len(c.bindArgs) > 0 {
-		buf.WriteStr1("\n<comment>CliArgs:</>\n")
+		buf.WriteStr1("\n<comment>Arguments:</>\n")
 		for _, arg := range c.bindArgs {
 			buf.Printf(
 				"  <green>%s</>   %s\n",
@@ -470,20 +492,23 @@ func (c *CFlags) showHelp(err error) {
 		buf.WriteStr1(strings.Trim(c.Example, "\n"))
 	}
 
-	color.Println(strutil.Replaces(buf.String(), helpVars))
+	ccolor.Println(strutil.Replaces(buf.String(), helpVars))
 }
 
-// ShowOptionsHelp prints, to standard error unless configured otherwise, the
+var optionIndentSpace = "\n" + strings.Repeat("    ", 7)
+
+// RenderOptionsHelp prints, to standard error unless configured otherwise, the
 // default values of all defined command-line flags in the set. See the
 // documentation for the global function PrintDefaults for more information.
 //
 // from flag.PrintDefaults
-func (c *CFlags) renderOptionsHelp(buf *strutil.Buffer) {
+func (c *CFlags) RenderOptionsHelp(buf *strutil.Buffer) {
 	c.VisitAll(func(opt *flag.Flag) {
 		var b strings.Builder
+		b.Grow(64)
 
 		mate := c.bindOpts[opt.Name]
-		stdio.QuietFprintf(&b, "  <info>%s</>", mate.HelpName(opt.Name))
+		stdio.Fprintf(&b, "  <info>%s</>", mate.HelpName(opt.Name))
 
 		typName, usage := flag.UnquoteUsage(opt)
 		if len(typName) > 0 {
@@ -493,22 +518,29 @@ func (c *CFlags) renderOptionsHelp(buf *strutil.Buffer) {
 
 		// Boolean flags of one ASCII letter are so common we
 		// treat them specially, putting their usage on the same line.
-		if b.Len() <= 32 { // space, space, '-', 'x'.
-			b.WriteString("\t")
+		lnDiff := b.Len() - 9 - 24 // -9: <info></>
+		if lnDiff < 0 {
+			b.WriteString("    ")
+			b.WriteString(strings.Repeat(" ", -lnDiff))
 		} else {
 			// Four spaces before the tab triggers good alignment
 			// for both 4- and 8-space tab stops.
-			b.WriteString("\n          \t")
+			b.WriteString(optionIndentSpace)
 		}
-		b.WriteString(strings.ReplaceAll(usage, "\n", "\n          \t"))
+		b.WriteString(strings.ReplaceAll(usage, "\n", optionIndentSpace))
 
 		// put quotes on the string value
 		if isZero, isStr := IsZeroValue(opt, opt.DefValue); !isZero {
 			if isStr {
-				stdio.QuietFprintf(&b, " (default <magentaB>%q</>)", opt.DefValue)
+				stdio.Fprintf(&b, " (default <magentaB>%q</>)", opt.DefValue)
 			} else {
-				stdio.QuietFprintf(&b, " (default <magentaB>%v</>)", opt.DefValue)
+				stdio.Fprintf(&b, " (default <magentaB>%v</>)", opt.DefValue)
 			}
+		}
+
+		// arrayed, repeatable
+		if _, ok := opt.Value.(RepeatableFlag); ok {
+			b.WriteString(" <cyan>(repeatable)</>")
 		}
 
 		b.WriteByte('\n')

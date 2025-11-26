@@ -9,10 +9,23 @@ import (
 	"github.com/gookit/goutil/netutil/httpctype"
 )
 
+// ValidMethods valid http methods
+var ValidMethods = []string{
+	http.MethodGet,
+	http.MethodPost,
+	http.MethodPut,
+	http.MethodPatch,
+	http.MethodDelete,
+	http.MethodConnect,
+	http.MethodHead,
+	http.MethodOptions,
+	http.MethodTrace,
+}
+
 // AfterSendFn callback func
 type AfterSendFn func(resp *http.Response, err error)
 
-// Doer interface for http client.
+// Doer interface for an http client.
 type Doer interface {
 	Do(req *http.Request) (*http.Response, error)
 }

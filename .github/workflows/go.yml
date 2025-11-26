@@ -19,11 +19,11 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
-        go_version: [1.19, '1.20', 1.21, 1.22, 1.23]
+        go_version: [1.19, 1.21, 1.22, 1.23, 1.24, stable]
 
     steps:
     - name: Check out code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Setup Go Faster
       uses: WillAbides/setup-go-faster@v1.14.0
@@ -33,14 +33,14 @@ jobs:
 
 #    - name: Revive check
 #      uses: morphy2k/revive-action@v2.5.10
-#      if: ${{ matrix.os == 'ubuntu-latest' && matrix.go_version == '1.22' }}
+#      if: ${{ matrix.os == 'ubuntu-latest' && matrix.go_version == '1.23' }}
 #      with:
 #        # Exclude patterns, separated by semicolons (optional)
 #        exclude: "./internal/..."
 
     - name: Run staticcheck
       uses: reviewdog/action-staticcheck@v1
-      if: ${{ matrix.os == 'ubuntu-latest' && matrix.go_version == '1.22' }}
+      if: ${{ matrix.os == 'ubuntu-latest' && matrix.go_version == '1.23' }}
       with:
         github_token: ${{ secrets.github_token }}
         # Change reviewdog reporter if you need [github-pr-check,github-check,github-pr-review].
@@ -48,8 +48,10 @@ jobs:
         # Report all results. [added,diff_context,file,nofilter].
         filter_mode: added
         # Exit with 1 when it finds at least one finding.
-        fail_on_error: false
+        fail_level: 'none'
 
+    - name: Tidy go mod
+      run: go mod tidy
     - name: Run unit tests
       # run: go test -v -cover ./...
       # must add " for profile.cov on Windows OS
@@ -61,6 +63,7 @@ jobs:
       with:
         path-to-profile: profile.cov
         flag-name: Go-${{ matrix.go_version }}
+        shallow: true
         parallel: true
 
   # notifies that all test jobs are finished.
@@ -71,4 +74,5 @@ jobs:
     steps:
       - uses: shogo82148/actions-goveralls@v1
         with:
+          shallow: true
           parallel-finished: true

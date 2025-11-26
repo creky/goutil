@@ -21,26 +21,20 @@ type BasicAuthConf struct {
 }
 
 // IsValid value
-func (ba *BasicAuthConf) IsValid() bool {
-	return ba.Password != "" && ba.Username != ""
-}
+func (ba *BasicAuthConf) IsValid() bool { return ba.Password != "" && ba.Username != "" }
 
 // Value build to auth header "Authorization".
-func (ba *BasicAuthConf) Value() string {
-	return BuildBasicAuth(ba.Username, ba.Password)
-}
+func (ba *BasicAuthConf) Value() string { return BuildBasicAuth(ba.Username, ba.Password) }
 
 // String build to auth header "Authorization".
-func (ba *BasicAuthConf) String() string {
-	return ba.Username + ":" + ba.Password
-}
+func (ba *BasicAuthConf) String() string { return ba.Username + ":" + ba.Password }
 
 // IsOK check response status code is 200
 func IsOK(statusCode int) bool {
 	return statusCode == http.StatusOK
 }
 
-// IsSuccessful check response status code is in 200 - 300
+// IsSuccessful check response status code is in 200-300
 func IsSuccessful(statusCode int) bool {
 	return statusCode >= http.StatusOK && statusCode < 300
 }
@@ -63,12 +57,12 @@ func IsNotFound(statusCode int) bool {
 	return statusCode == http.StatusNotFound
 }
 
-// IsClientError check response is client error (400 - 500)
+// IsClientError check response is client error (400-500)
 func IsClientError(statusCode int) bool {
 	return statusCode >= http.StatusBadRequest && statusCode < http.StatusInternalServerError
 }
 
-// IsServerError check response is server error (500 - 600)
+// IsServerError check response is server error (500-600)
 func IsServerError(statusCode int) bool {
 	return statusCode >= http.StatusInternalServerError && statusCode <= 600
 }
@@ -76,6 +70,20 @@ func IsServerError(statusCode int) bool {
 // IsNoBodyMethod check
 func IsNoBodyMethod(method string) bool {
 	return method != "POST" && method != "PUT" && method != "PATCH"
+}
+
+// IsValidMethod check method is valid
+func IsValidMethod(method string) bool {
+	method = strings.ToUpper(method)
+	return http.MethodGet == method ||
+		http.MethodPost == method ||
+		http.MethodPut == method ||
+		http.MethodPatch == method ||
+		http.MethodDelete == method ||
+		http.MethodConnect == method ||
+		http.MethodHead == method ||
+		http.MethodOptions == method ||
+		http.MethodTrace == method
 }
 
 // BuildBasicAuth returns the base64 encoded username:password for basic auth.
@@ -107,14 +115,14 @@ func SetHeaders(req *http.Request, headers ...http.Header) {
 	}
 }
 
-// AddHeaderMap to reqeust instance.
+// AddHeaderMap to request instance.
 func AddHeaderMap(req *http.Request, headerMap map[string]string) {
 	for k, v := range headerMap {
 		req.Header.Add(k, v)
 	}
 }
 
-// SetHeaderMap to reqeust instance.
+// SetHeaderMap to request instance.
 func SetHeaderMap(req *http.Request, headerMap map[string]string) {
 	for k, v := range headerMap {
 		req.Header.Set(k, v)

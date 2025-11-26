@@ -1,13 +1,8 @@
 // Package comdef provide some common type or constant definitions
 package comdef
 
-type (
-	// MarshalFunc define
-	MarshalFunc func(v any) ([]byte, error)
-
-	// UnmarshalFunc define
-	UnmarshalFunc func(bts []byte, ptr any) error
-)
+// ToTypeFunc convert value to defined type
+type ToTypeFunc[T any] func(any) (T, error)
 
 // ToTypeFunc convert value to defined type
 type ToTypeFunc[T any] func(any) (T, error)

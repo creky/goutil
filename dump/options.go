@@ -31,8 +31,12 @@ type Options struct {
 	SkipPrivate bool
 	// BytesAsString dump handle.
 	BytesAsString bool
+	// ShowLen display length information for string, slice, array, map
+	ShowLen bool
 	// MoreLenNL array/slice elements length > MoreLenNL, will wrap new line
 	// MoreLenNL int
+	// MaxElementsNum for a long-long slice or array. The excess will be displayed `...`
+	MaxElementsNum int
 }
 
 // OptionFunc type
@@ -55,6 +59,9 @@ func NewDefaultOptions(out io.Writer, skip int) *Options {
 		IndentChar: ' ',
 		CallerSkip: skip,
 		ColorTheme: defaultTheme,
+		// ---
+		ShowLen:        true, // show length by default for backward compatibility
+		MaxElementsNum: 99,
 	}
 }
 
@@ -111,5 +118,12 @@ func WithoutColor() OptionFunc {
 func WithoutType() OptionFunc {
 	return func(opt *Options) {
 		opt.NoType = true
+	}
+}
+
+// WithoutLen setting. hide length information for string, slice, array, map.
+func WithoutLen() OptionFunc {
+	return func(opt *Options) {
+		opt.ShowLen = false
 	}
 }

@@ -3,8 +3,16 @@ package mathutil
 import "github.com/gookit/goutil/comdef"
 
 // IsNumeric returns true if the given character is a numeric, otherwise false.
-func IsNumeric(c byte) bool {
-	return c >= '0' && c <= '9'
+func IsNumeric(c byte) bool { return c >= '0' && c <= '9' }
+
+// IsInteger strict check the given value is an integer(intX,uintX), otherwise false.
+func IsInteger(val any) bool {
+	switch val.(type) {
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
+		return true
+	default:
+		return false
+	}
 }
 
 // Compare any intX,floatX value by given op. returns `first op(=,!=,<,<=,>,>=) second`
@@ -56,7 +64,7 @@ func CompFloat[T comdef.Float](first, second T, op string) (ok bool) {
 }
 
 // CompValue compare intX,uintX,floatX value. returns `first op(=,!=,<,<=,>,>=) second`
-func CompValue[T comdef.XintOrFloat](first, second T, op string) (ok bool) {
+func CompValue[T comdef.Number](first, second T, op string) (ok bool) {
 	switch op {
 	case "<", "lt":
 		ok = first < second
@@ -75,12 +83,12 @@ func CompValue[T comdef.XintOrFloat](first, second T, op string) (ok bool) {
 }
 
 // InRange check if val in int/float range [min, max]
-func InRange[T comdef.IntOrFloat](val, min, max T) bool {
+func InRange[T comdef.Number](val, min, max T) bool {
 	return val >= min && val <= max
 }
 
 // OutRange check if val not in int/float range [min, max]
-func OutRange[T comdef.IntOrFloat](val, min, max T) bool {
+func OutRange[T comdef.Number](val, min, max T) bool {
 	return val < min || val > max
 }
 

@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gookit/color"
 	"github.com/gookit/goutil/comdef"
 	"github.com/gookit/goutil/mathutil"
 	"github.com/gookit/goutil/reflects"
 	"github.com/gookit/goutil/strutil"
+	"github.com/gookit/goutil/x/ccolor"
 )
 
 // isEmpty value check
@@ -75,9 +75,9 @@ func truncatingFormat(data any) string {
 	}
 
 	// Give us some space the type info too if needed.
-	max := bufio.MaxScanTokenSize - 1000
-	if len(value) > max {
-		value = value[0:max] + "<... truncated>"
+	maxSize := bufio.MaxScanTokenSize - 1000
+	if len(value) > maxSize {
+		value = value[0:maxSize] + "<... truncated>"
 	}
 	return value
 }
@@ -143,7 +143,7 @@ func formatLabeledTexts(lts []labeledText) string {
 	for i, lt := range lts {
 		label := lt.label
 		if EnableColor {
-			label = color.Green.Sprint(label)
+			label = ccolor.Green.Sprint(label)
 		}
 
 		sb.WriteString("  " + label + strutil.Repeat(" ", labelWidth-len(lt.label)) + ":  ")

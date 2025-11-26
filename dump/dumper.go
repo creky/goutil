@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gookit/color"
 	"github.com/gookit/goutil/strutil"
+	"github.com/gookit/goutil/x/ccolor"
 )
 
 // printValue must keep track of already-printed pointer values to avoid
@@ -139,7 +139,7 @@ func (d *Dumper) printCaller(pc uintptr, file string, line int) {
 	// "PRINT AT github.com/gookit/goutil/dump.ExamplePrint(dump_test.go:23)"
 	// "PRINT AT github.com/gookit/goutil/dump.ExamplePrint(:23)"
 	for _, flag := range callerFlags {
-		// has flag
+		// has a flag
 		if d.ShowFlag&flag == 0 {
 			continue
 		}
@@ -186,8 +186,12 @@ func (d *Dumper) printOne(v any) {
 
 	if bts, ok := v.([]byte); ok && d.BytesAsString {
 		strVal := d.ColorTheme.string(string(bts))
+		if d.ShowLen {
 		lenTip := d.ColorTheme.valTip("#len=" + strconv.Itoa(len(bts)) + ",cap=" + strconv.Itoa(cap(bts)))
 		d.printf("[]byte(\"%s\"), %s\n", strVal, lenTip)
+		} else {
+			d.printf("[]byte(\"%s\"),\n", strVal)
+		}
 		return
 	}
 
@@ -244,8 +248,12 @@ func (d *Dumper) printRValue(t reflect.Type, v reflect.Value) {
 		d.printf("%s(%s),%s\n", t.String(), intStr, d.rvStringer(t, v))
 	case reflect.String:
 		strVal := d.ColorTheme.string(v.String())
+		if d.ShowLen {
 		lenTip := d.ColorTheme.valTip("#len=" + strconv.Itoa(v.Len()))
 		d.printf("%s(\"%s\"), %s\n", t.String(), strVal, lenTip)
+		} else {
+			d.printf("%s(\"%s\"),\n", t.String(), strVal)
+		}
 	case reflect.Complex64, reflect.Complex128:
 		d.printf("%#v\n", v.Complex())
 	case reflect.Slice, reflect.Array:
@@ -254,12 +262,20 @@ func (d *Dumper) printRValue(t reflect.Type, v reflect.Value) {
 		}
 
 		eleNum := v.Len()
+		if d.ShowLen {
 		lenTip := d.ColorTheme.valTip("#len=" + strconv.Itoa(eleNum) + ",cap=" + strconv.Itoa(v.Cap()))
-
 		d.write(!isPtr, t.String(), " [ ", lenTip, "\n")
+		} else {
+			d.write(!isPtr, t.String(), " [\n")
+		}
 		d.msValue = false
 
 		for i := 0; i < eleNum; i++ {
+			if i > d.MaxElementsNum {
+				d.indentPrint("...(!OVER MAX SETTING!)...\n")
+				break
+			}
+
 			sv := v.Index(i)
 			d.advance(1)
 
@@ -282,7 +298,7 @@ func (d *Dumper) printRValue(t reflect.Type, v reflect.Value) {
 			d.printf("time.Time(%s),\n", d.ColorTheme.string(d.fmtTimeValue(v)))
 			break
 		}
-		// up: if is type alias of time.Time, use datetime format
+		// up: if is type alias of time.Time, use a datetime format
 		if !isPtr && t.ConvertibleTo(timeType) {
 			tv := v.Convert(timeType)
 			d.printf("%s(%s),\n", t.String(), d.ColorTheme.string(d.fmtTimeValue(tv)))
@@ -318,9 +334,12 @@ func (d *Dumper) printRValue(t reflect.Type, v reflect.Value) {
 
 		d.indentPrint("},\n")
 	case reflect.Map:
+		if d.ShowLen {
 		lenTip := d.ColorTheme.valTip("#len=" + strconv.Itoa(v.Len()))
-
 		d.write(!isPtr, d.ColorTheme.msType(t.String()), " { ", lenTip, "\n")
+		} else {
+			d.write(!isPtr, d.ColorTheme.msType(t.String()), " {\n")
+		}
 		d.msValue = false
 
 		for _, key := range v.MapKeys() {
@@ -430,7 +449,7 @@ func (d *Dumper) print(v ...any) {
 	if d.NoColor {
 		_, _ = fmt.Fprint(d.Output, v...)
 	} else {
-		color.Fprint(d.Output, v...)
+		ccolor.Fprint(d.Output, v...)
 	}
 }
 
@@ -442,7 +461,7 @@ func (d *Dumper) printf(f string, v ...any) {
 	if d.NoColor {
 		_, _ = fmt.Fprintf(d.Output, f, v...)
 	} else {
-		color.Fprintf(d.Output, f, v...)
+		ccolor.Fprintf(d.Output, f, v...)
 	}
 }
 
@@ -454,7 +473,7 @@ func (d *Dumper) write(indent bool, v ...any) {
 	if d.NoColor {
 		_, _ = fmt.Fprint(d.Output, v...)
 	} else {
-		color.Fprint(d.Output, v...)
+		ccolor.Fprint(d.Output, v...)
 	}
 }
 

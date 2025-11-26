@@ -7,7 +7,7 @@ import (
 
 	"github.com/gookit/goutil/fsutil"
 	"github.com/gookit/goutil/testutil/assert"
-	"github.com/gookit/goutil/testutil/fakeobj"
+	"github.com/gookit/goutil/x/fakeobj"
 )
 
 func TestDiscardReader(t *testing.T) {
@@ -46,7 +46,7 @@ func TestGetContents(t *testing.T) {
 	fpath := "./testdata/get-contents.txt"
 	assert.NoErr(t, fsutil.RmFileIfExist(fpath))
 
-	_, err := fsutil.PutContents(fpath, "hello")
+	_, err := fsutil.WriteData(fpath, "hello")
 	assert.NoErr(t, err)
 
 	assert.Nil(t, fsutil.ReadExistFile("/path-not-exist"))

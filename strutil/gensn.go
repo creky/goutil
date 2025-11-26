@@ -7,8 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gookit/goutil/basefn"
-	"github.com/gookit/goutil/mathutil"
+	"github.com/gookit/goutil/x/basefn"
 )
 
 // global id:
@@ -30,40 +29,44 @@ var (
 //	b32id := Base10Conv(mtId, 32) // eg: em1jia8akl78n len: 13
 //	b36id := Base10Conv(mtId, 36) // eg: 3ko088phiuoev len: 13
 //	b62id := Base10Conv(mtId, 62) // eg: kb24SKgsQ9V len: 11
-func MicroTimeID() string {
-	return MTimeBaseID(10)
-}
+func MicroTimeID() string { return MTimeBaseID(10) }
 
-// MicroTimeHexID micro time hex id generate.
+// MicroTimeHexID micro time HEX ID generate.
 //
-// return like: 5b5f0588af1761ad3(len: 16-17)
+// return like: 643d4cec7db9e(len: 13)
 func MicroTimeHexID() string { return MTimeHexID() }
 
-// MTimeHexID micro time hex id generate.
+// MTimeHexID micro time HEX ID generate.
 //
-// return like: 5b5f0588af1761ad3(len: 16-17)
-func MTimeHexID() string {
-	return MTimeBaseID(16)
-}
+// return like: 643d4cec7db9e(len: 13)
+func MTimeHexID() string { return MTimeBaseID(16) }
 
-// MTimeBaseID micro time BASE id generate. toBase: 2 - 36
+// MTimeBase36 micro time BASE36 id generate.
+func MTimeBase36() string { return MTimeBaseID(36) }
+
+// MTimeBaseID micro time BASE id generate. toBase: 2-36
 //
 // Examples:
-//   - MTimeBaseID(16): 5b5f0588af1761ad3(len: 16-17)
-//   - MTimeBaseID(36): gorntzvsa73mo(len: 13)
+//   - toBase=16: 643d4cec7db9e(len: 13)
+//   - toBase=36: hd312z9ka2(len: 10)
 func MTimeBaseID(toBase int) string {
+	// eg: 1763431181849557
 	ms := time.Now().UnixMicro()
-	ri := mathutil.RandomInt(DefMinInt, DefMaxInt)
-	return strconv.FormatInt(ms, toBase) + strconv.FormatInt(int64(ri), toBase)
+	// rand 1000 - 9999
+	// ri := mathutil.RandomInt(DefMinInt, DefMaxInt)
+	ri := 1000 + rand.Int63n(8999)
+
+	if toBase > 36 {
+		return BaseConvInt(uint64(ms)+uint64(ri), toBase)
+	}
+	return strconv.FormatInt(ms+ri, toBase)
 }
 
 // DatetimeNo generate. can use for order-no.
 //
 //   - No prefix, return like: 2023041410484904074285478388(len: 28)
 //   - With prefix, return like: prefix2023041410484904074285478388(len: 28 + len(prefix))
-func DatetimeNo(prefix string) string {
-	return DateSN(prefix)
-}
+func DatetimeNo(prefix string) string { return DateSN(prefix) }
 
 // DateSN generate date serial number. PREFIX + yyyyMMddHHmmss + ext(微秒+随机数)
 func DateSN(prefix string) string {
@@ -87,20 +90,20 @@ func DateSN(prefix string) string {
 	bs = strconv.AppendUint(bs, uint64(c32%99), 10)
 
 	// rand 1000 - 9999
-	rs := rand.New(rand.NewSource(nt.UnixNano()))
-	bs = strconv.AppendInt(bs, 1000+rs.Int63n(8999), 10)
+	// rs := rand.New(rand.NewSource(nt.UnixNano()))
+	bs = strconv.AppendInt(bs, 1000+rand.Int63n(8999), 10)
 
 	return string(bs)
 }
 
-// DateSNV2 generate date serial number.
+// DateSNv2 generate date serial number.
 //   - 2 < extBase <= 36
 //   - return: PREFIX + yyyyMMddHHmmss + extBase(6bit micro + 5bit random number)
 //
 // Example:
 //   - prefix=P, extBase=16, return: P2023091414361354b4490(len=22)
 //   - prefix=P, extBase=36, return: P202309141436131gw3jg(len=21)
-func DateSNV2(prefix string, extBase ...int) string {
+func DateSNv2(prefix string, extBase ...int) string {
 	pl := len(prefix)
 	bs := make([]byte, 0, 22+pl)
 	if pl > 0 {
@@ -112,13 +115,53 @@ func DateSNV2(prefix string, extBase ...int) string {
 	bs = nt.AppendFormat(bs, "20060102150405.000000")
 
 	// rand 10000 - 99999
-	rs := rand.New(rand.NewSource(nt.UnixNano()))
+	// rs := rand.New(rand.NewSource(nt.UnixNano()))
 	// 6bit micro + 5bit rand
-	ext := strconv.AppendInt(bs[16+pl:], 10000+rs.Int63n(89999), 10)
+	ext := strconv.AppendInt(bs[16+pl:], 10000+rand.Int63n(89999), 10)
 
 	base := basefn.FirstOr(extBase, 16)
 	// prefix + yyyyMMddHHmmss + ext(convert to base)
 	bs = append(bs[:14+pl], strconv.FormatInt(SafeInt64(string(ext)), base)...)
 
+	return string(bs)
+}
+
+// DateSNv3 generate date serial number.
+//   - 2 < extBase <= 64
+//   - return: PREFIX + DATETIME(yyyyMMddHHmmss).dateLen + extBase(DATETIME.after+6bit micro + 5bit random number)
+//   - dateLen: 为 DATETIME(yyyyMMddHHmmss) 保留的长度，默认为 8(yyyyMMdd) 后面的给 extBase 使用
+//
+// Example:
+//   - prefix=P, dateLen=8, extBase=16, return: P202511139vs99gbifnj len: 20
+//   - prefix=P, dateLen=6, extBase=36, return: P2025119yn52qhefati len: 19
+//   - prefix=P, dateLen=6, extBase=48, return: P202511k9ksgD1fe6x len: 18
+//   - prefix=P, dateLen=4, extBase=62, return: P2025aZl8N0y58M7 len: 16
+func DateSNv3(prefix string, dateLen int, extBase ...int) string {
+	pl := len(prefix)
+	bs := make([]byte, 0, 22+pl)
+	if pl > 0 {
+		bs = append(bs, prefix...)
+	}
+
+	// micro datetime
+	nt := time.Now()
+	bs = nt.AppendFormat(bs, "20060102150405.000000")
+	// 去掉 bs 中间的 .
+	bs = append(bs[:14+pl], bs[15+pl:]...)
+
+	// rand 10000 - 99999
+	// rs := rand.New(rand.NewSource(nt.UnixNano())) // ERR: 这样使用，同时调用产生随机数相同，导致重复
+	// 6bit micro + 5bit rand
+	// ext := strconv.AppendInt(bs[dateLen+pl:], 10000+rs.Int63n(89999), 10)
+	ext := strconv.AppendInt(bs[dateLen+pl:], 10000+rand.Int63n(89999), 10)
+	extI64, _ := strconv.ParseInt(string(ext), 10, 0)
+
+	base := basefn.FirstOr(extBase, 32)
+	// PREFIX + DATETIME(yyyyMMddHHmmss).dateLen + extBase(convert to base)
+	if base > 36 {
+		bs = append(bs[:dateLen+pl], BaseConvInt(uint64(extI64), base)...)
+	} else {
+		bs = append(bs[:dateLen+pl], strconv.FormatInt(extI64, base)...)
+	}
 	return string(bs)
 }

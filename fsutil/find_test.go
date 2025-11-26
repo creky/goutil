@@ -2,6 +2,7 @@ package fsutil_test
 
 import (
 	"io/fs"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -9,8 +10,50 @@ import (
 	"github.com/gookit/goutil/errorx"
 	"github.com/gookit/goutil/fsutil"
 	"github.com/gookit/goutil/testutil/assert"
-	"github.com/gookit/goutil/testutil/fakeobj"
+	"github.com/gookit/goutil/x/fakeobj"
 )
+
+func TestFindAllInParentDirs(t *testing.T) {
+	// find all
+	ss := fsutil.FindAllInParentDirs("testdata", "find.go", func(opt *fsutil.FindParentOption) {
+		opt.MaxLevel = 3
+	})
+	assert.NotEmpty(t, ss)
+	assert.Len(t, ss, 1)
+
+	ss = fsutil.FindAllInParentDirs("testdata", "README.md", func(opt *fsutil.FindParentOption) {
+		opt.MaxLevel = 5
+	})
+	assert.NotEmpty(t, ss)
+	assert.Gt(t, len(ss), 1)
+}
+
+func TestFindOneInParentDirs(t *testing.T) {
+	// find one
+	s := fsutil.FindOneInParentDirs("testdata", "goutil.go")
+	assert.NotEmpty(t, s)
+	if runtime.GOOS == "windows" {
+		assert.StrContains(t, s, "goutil\\goutil.go")
+	} else {
+		assert.StrContains(t, s, "goutil/goutil.go")
+	}
+
+	// find dir
+	s = fsutil.FindOneInParentDirs("testdata", "errorx", func(opt *fsutil.FindParentOption) {
+		opt.NeedDir = true
+	})
+	assert.NotEmpty(t, s)
+}
+
+func TestFilePathInDirs(t *testing.T) {
+	result := fsutil.FilePathInDirs("not_existing_file.txt")
+	assert.Empty(t, result)
+	result = fsutil.FilePathInDirs("not_existing_file.txt", "testdata")
+	assert.Empty(t, result)
+
+	result = fsutil.FilePathInDirs("find.go")
+	assert.NotEmpty(t, result)
+}
 
 func TestMatchFirst(t *testing.T) {
 	assert.Eq(t, "testdata", fsutil.MatchFirst([]string{"testdata"}, fsutil.IsDir, ""))
@@ -21,12 +64,14 @@ func TestMatchFirst(t *testing.T) {
 
 	ps := fsutil.MatchPaths([]string{"testdata", "testdata/test.jpg"}, fsutil.IsDir)
 	assert.Eq(t, []string{"testdata"}, ps)
+
+	assert.Eq(t, "default_dir", fsutil.MatchFirst([]string{"not_exist_dir"}, fsutil.IsDir, "default_dir"))
 }
 
 func TestSearchNameUp(t *testing.T) {
-	p := fsutil.SearchNameUp("testdata", "finder")
+	p := fsutil.SearchNameUp("testdata", "dump")
 	assert.NotEmpty(t, p)
-	assert.True(t, strings.HasSuffix(p, "fsutil"))
+	assert.True(t, strings.HasSuffix(p, "goutil"))
 
 	p = fsutil.SearchNameUp("testdata", ".dotdir")
 	assert.NotEmpty(t, p)

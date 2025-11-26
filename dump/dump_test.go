@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gookit/color"
 	"github.com/gookit/goutil/testutil/assert"
+	"github.com/gookit/goutil/x/ccolor"
 )
 
 func ExamplePrint() {
@@ -247,7 +247,7 @@ func ExampleStruct_interfaceField() {
 	}
 
 	Println(myS1)
-	color.Infoln("\nUse fmt.Println:")
+	ccolor.Infoln("\nUse fmt.Println:")
 	fmt.Println(myS1)
 }
 
@@ -262,7 +262,7 @@ func ExampleStruct_mapInterfacedValue() {
 	}
 
 	Println(myS2)
-	color.Infoln("\nUse fmt.Println:")
+	ccolor.Infoln("\nUse fmt.Println:")
 	fmt.Println(myS2)
 	fmt.Println("---------------------------------------------------------------")
 
@@ -286,7 +286,7 @@ func ExampleStruct_mapInterfacedValue() {
 	}
 
 	Println(s2)
-	color.Infoln("\nUse fmt.Println:")
+	ccolor.Infoln("\nUse fmt.Println:")
 	fmt.Println(s2)
 }
 
@@ -305,7 +305,7 @@ func TestStruct_ptrField(_ *testing.T) {
 	}
 
 	Println(opt)
-	color.Infoln("\nUse fmt.Println:")
+	ccolor.Infoln("\nUse fmt.Println:")
 	fmt.Println(opt)
 	fmt.Println("---------------------------------------------------------------")
 
@@ -399,4 +399,90 @@ func newBuffer() *bytes.Buffer {
 	})
 
 	return buf
+}
+
+func TestWithoutLen(t *testing.T) {
+	is := assert.New(t)
+	buf := new(bytes.Buffer)
+
+	// Test with ShowLen disabled
+	Config(func(d *Options) {
+		d.NoColor = true
+		d.ShowFlag = Fnopos
+	})
+	defer Reset()
+
+	// Test string without length
+	Std().WithOptions(WithoutLen())
+	buf.Reset()
+	Fprint(buf, "DISABLED")
+	is.Eq("string(\"DISABLED\"),\n", buf.String())
+	is.NotContains(buf.String(), "#len")
+
+	// Test slice without length
+	buf.Reset()
+	Fprint(buf, []string{"ab", "cd"})
+	is.NotContains(buf.String(), "#len")
+	is.Contains(buf.String(), "[]string [")
+
+	// Test array without length
+	buf.Reset()
+	arr := [3]int{1, 2, 3}
+	Fprint(buf, arr)
+	is.NotContains(buf.String(), "#len")
+	is.Contains(buf.String(), "[3]int [")
+
+	// Test map without length
+	buf.Reset()
+	Fprint(buf, map[string]string{"key": "val"})
+	is.NotContains(buf.String(), "#len")
+	is.Contains(buf.String(), "map[string]string {")
+
+	// Test struct field with string without length
+	buf.Reset()
+	Fprint(buf, struct {
+		Name string
+	}{
+		"test",
+	})
+	is.NotContains(buf.String(), "#len")
+	is.Contains(buf.String(), "Name: string(\"test\"),")
+
+	// Test BytesAsString without length
+	Std().WithOptions(BytesAsString(), WithoutLen())
+	buf.Reset()
+	Fprint(buf, []byte("hello"))
+	is.NotContains(buf.String(), "#len")
+	is.Contains(buf.String(), "[]byte(\"hello\"),")
+}
+
+func TestShowLen_Default(t *testing.T) {
+	is := assert.New(t)
+	buf := new(bytes.Buffer)
+
+	// Test with ShowLen enabled (default behavior)
+	Config(func(d *Options) {
+		d.NoColor = true
+		d.ShowFlag = Fnopos
+	})
+	defer Reset()
+
+	// Verify ShowLen is true by default
+	is.True(Std().ShowLen)
+
+	// Test string with length (default)
+	buf.Reset()
+	Fprint(buf, "DISABLED")
+	is.Contains(buf.String(), "#len=8")
+	is.Eq("string(\"DISABLED\"), #len=8\n", buf.String())
+
+	// Test slice with length (default)
+	buf.Reset()
+	Fprint(buf, []string{"ab", "cd"})
+	is.Contains(buf.String(), "#len=2")
+
+	// Test map with length (default)
+	buf.Reset()
+	Fprint(buf, map[string]int{"key": 123})
+	is.Contains(buf.String(), "#len=1")
 }

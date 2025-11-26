@@ -3,7 +3,9 @@ package reflects_test
 import (
 	"math"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/gookit/goutil/reflects"
 	"github.com/gookit/goutil/testutil/assert"
@@ -40,10 +42,6 @@ func TestValueByType(t *testing.T) {
 	assert.NoErr(t, err)
 	assert.True(t, val.Bool())
 
-	val, err = reflects.ValueByType("abc", reflect.TypeOf("s"))
-	assert.NoErr(t, err)
-	assert.Eq(t, "abc", val.Interface())
-
 	val, err = reflects.ValueByType(123, reflect.TypeOf("s"))
 	assert.NoErr(t, err)
 	assert.Eq(t, "123", val.Interface())
@@ -51,6 +49,15 @@ func TestValueByType(t *testing.T) {
 	val, err = reflects.ValueByType("123", reflect.TypeOf(1))
 	assert.NoErr(t, err)
 	assert.Eq(t, 123, val.Interface())
+
+	// same type
+	val, err = reflects.ValueByType("abc", reflect.TypeOf("s"))
+	assert.NoErr(t, err)
+	assert.Eq(t, "abc", val.Interface())
+
+	// invalid val
+	_, err = reflects.ConvToType(nil, reflect.TypeOf(1))
+	assert.Err(t, err)
 }
 
 func TestValueByType_slice(t *testing.T) {
@@ -163,6 +170,10 @@ func TestValueByKind(t *testing.T) {
 	val, err = reflects.ValueByKind("true", reflect.Bool)
 	assert.NoErr(t, err)
 	assert.True(t, val.Bool())
+
+	val, err = reflects.ValueByKind(reflect.ValueOf("true"), reflect.Bool)
+	assert.NoErr(t, err)
+	assert.True(t, val.Bool())
 }
 
 func TestToString(t *testing.T) {
@@ -199,4 +210,36 @@ func TestToString(t *testing.T) {
 
 	rv = reflect.Value{}
 	assert.Eq(t, "", reflects.String(rv))
+}
+
+func TestToTimeOrDuration(t *testing.T) {
+	tests := []struct {
+		str      string
+		typ      reflect.Type
+		hasErr   bool
+		expected any
+	}{
+		{"3s", reflect.TypeOf(time.Duration(0)), false, 3 * time.Second},
+		{"2023-01-01T00:00:00Z", reflect.TypeOf(time.Time{}), false, time.Date(2023, 1, 1, 0, 0, 0, 0, time.Local)},
+		{"1h2m3s", reflect.TypeOf(time.Duration(0)), false, 3723 * time.Second},
+		{"a message", reflect.TypeOf(34), false, "a message"},
+		{"2023-01-02T00:00:00Z", reflect.TypeOf(""), false, "2023-01-02T00:00:00Z"},
+		{"invalid Time", reflect.TypeOf(time.Time{}), true, nil},
+		{"invalid Duration", reflect.TypeOf(time.Duration(0)), true, nil},
+	}
+
+	for _, test := range tests {
+		result, err := reflects.ToTimeOrDuration(test.str, test.typ)
+		if test.hasErr {
+			assert.Err(t, err)
+		} else {
+			assert.NoErr(t, err)
+		}
+		assert.Eq(t, test.expected, result, "case: "+test.str)
+	}
+
+	longStr := strings.Repeat("a long message", 10)
+	result, err := reflects.ToTimeOrDuration(longStr, reflect.TypeOf(""))
+	assert.NoErr(t, err)
+	assert.Eq(t, longStr, result)
 }

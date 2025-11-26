@@ -108,6 +108,7 @@ func TestCommon_fail(t *testing.T) {
 	assert.StrContains(t, str, "goutil/testutil/assert/asserts_test.go:")
 	assert.StrContains(t, str, "Expected nil, but got:")
 	assert.StrNotContains(t, str, "NOT EXIST")
+	assert.StrContainsAll(t, str, []string{"goutil", "testutil"})
 	tc.Reset()
 
 	assert.NotNil(tc, nil)
@@ -288,6 +289,15 @@ func TestCommon_fail(t *testing.T) {
 
 	assert.FailNow(tc, "custom message2")
 	assert.StrContains(t, tc.ResetGet(), "custom message2")
+}
+
+func TestFileSystem(t *testing.T) {
+	assert.FileExists(t, "asserts.go")
+	assert.FileNotExists(t, "testdata/file1.txt")
+
+	// dir
+	assert.DirExists(t, "../_example")
+	assert.DirNotExists(t, "testdata/dir1")
 }
 
 func TestErr(t *testing.T) {

@@ -18,10 +18,10 @@ type Client struct {
 	method  string
 	baseURL string
 	timeout int // unit: ms
-	// custom set headers
+	// custom set default headers
 	headerMap map[string]string
 
-	// beforeSend callback
+	// before send callback
 	beforeSend func(req *http.Request)
 	afterSend  AfterSendFn
 }
@@ -40,7 +40,7 @@ func NewWithTimeout(ms int) *Client {
 	return NewWithDoer(&http.Client{Timeout: time.Duration(ms) * time.Millisecond})
 }
 
-// NewWithDoer instance with custom http client
+// NewWithDoer instance with a custom http client
 func NewWithDoer(d Doer) *Client {
 	return &Client{
 		client: d,
@@ -50,10 +50,8 @@ func NewWithDoer(d Doer) *Client {
 	}
 }
 
-// Doer get the http client
-func (h *Client) Doer() Doer {
-	return h.client
-}
+// Doer get the http client driver
+func (h *Client) Doer() Doer { return h.client }
 
 // SetClient custom set http client doer
 func (h *Client) SetClient(c Doer) *Client {
@@ -219,12 +217,11 @@ func (h *Client) MustSend(method, url string, optFns ...OptionFn) *http.Response
 
 // SendWithOpt request and return http response
 func (h *Client) SendWithOpt(url string, opt *Option) (*http.Response, error) {
-	cli := h
-	if len(cli.baseURL) > 0 {
+	if len(h.baseURL) > 0 {
 		if !strings.HasPrefix(url, "http") {
-			url = cli.baseURL + url
+			url = h.baseURL + url
 		} else if len(url) == 0 {
-			url = cli.baseURL
+			url = h.baseURL
 		}
 	}
 
@@ -235,7 +232,7 @@ func (h *Client) SendWithOpt(url string, opt *Option) (*http.Response, error) {
 	}
 
 	// create request
-	method := strings.ToUpper(strutil.OrElse(opt.Method, cli.method))
+	method := strings.ToUpper(strutil.OrElse(opt.Method, h.method))
 
 	if opt.Data != nil {
 		if IsNoBodyMethod(method) {
