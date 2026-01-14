@@ -59,11 +59,19 @@ func TestCommon_success(t *testing.T) {
 	assert.Eq(t, 1, 1)
 	assert.Eq(t, nil, nil)
 	assert.Equal(t, 1, 1)
+	assert.Equal(t, 23.455, 23.456)
 
 	// neq
 	assert.Neq(t, 1, 2)
 	assert.NotEq(t, 1, 2)
 	assert.NotEqual(t, 1, 2)
+	assert.NotEq(t, 13, uint16(13))
+
+	// eqInt
+	assert.EqInt(t, 13, uint16(13))
+
+	// EqFloat/InDelta
+	assert.EqFloat(t, 1.1, 1.2, 0.1)
 
 	// kind
 	assert.IsType(t, 1, 1)
@@ -309,6 +317,7 @@ func TestErr(t *testing.T) {
 	assert.Err(t, err, "user custom message")
 	assert.Error(t, err)
 	assert.ErrMsg(t, err, "this is a error")
+	assert.ErrHasMsg(t, err, "a error")
 }
 
 func TestContains(t *testing.T) {

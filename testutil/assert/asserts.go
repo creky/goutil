@@ -486,6 +486,13 @@ func ErrMsgContains(t TestingT, err error, subMsg string, fmtAndArgs ...any) boo
 
 // ErrSubMsg asserts that the given is a not nil error and the error message contains subMsg
 func ErrSubMsg(t TestingT, err error, subMsg string, fmtAndArgs ...any) bool {
+	t.Helper()
+	return ErrMsgContains(t, err, subMsg, fmtAndArgs...)
+}
+
+// ErrHasMsg asserts that the given is a not nil error and the error message contains subMsg
+func ErrHasMsg(t TestingT, err error, subMsg string, fmtAndArgs ...any) bool {
+	t.Helper()
 	return ErrMsgContains(t, err, subMsg, fmtAndArgs...)
 }
 
@@ -544,6 +551,16 @@ func Eq(t TestingT, want, give any, fmtAndArgs ...any) bool {
 			fmt.Sprintf("Cannot compare: %#v == %#v (%s)", want, give, err),
 			fmtAndArgs,
 		)
+	}
+
+	// float 特殊处理 - 默认按 0.009 精度对比
+	if mathutil.IsFloat(want) {
+		if mathutil.InDeltaAny(want, give, 0.009) {
+			return true
+		}
+		return fail(t, fmt.Sprintf("Not equal(inDelta=0.009): \n"+
+			"expect: %s\n"+
+			"actual: %s", want, give), fmtAndArgs)
 	}
 
 	if !reflects.IsEqual(want, give) {
@@ -625,6 +642,47 @@ func Gte(t TestingT, give, min any, fmtAndArgs ...any) bool {
 
 	t.Helper()
 	return fail(t, fmt.Sprintf("Given %v should greater than or equal %v", give, min), fmtAndArgs)
+}
+
+// EqInt asserts that the want should equal to the given intX.
+//
+// NOTE: Will always convert to int64 to compare.
+//
+// Example:
+// 	assert.Eq(t, uint(1), int(1)) // false
+// 	assert.EqInt(t, uint(1), int(1)) // true
+func EqInt(t TestingT, want, give any, fmtAndArgs ...any) bool {
+	t.Helper()
+
+	wantI64, err := mathutil.Int64(want)
+	if err != nil {
+		return fail(t, fmt.Sprintf("Want value cannot convert to int64: %#v, %#v. err=%v", want, give, err), fmtAndArgs)
+	}
+	giveI64, err1 := mathutil.Int64(give)
+	if err1 != nil {
+		return fail(t, fmt.Sprintf("Give value cannot convert to int64: %#v, %#v. err=%v", want, give, err1), fmtAndArgs)
+	}
+
+	if wantI64 == giveI64 {
+		return true
+	}
+	return fail(t, fmt.Sprintf("Given %v(i64=%d) should equal to %v(i64=%d)", give, giveI64, want, wantI64), fmtAndArgs)
+}
+
+// EqFloat asserts that the want should equal to the given with delta. alias of InDelta()
+func EqFloat(t TestingT, want, give any, delta float64, fmtAndArgs ...any) bool {
+	t.Helper()
+	return InDelta(t, want, give, delta, fmtAndArgs...)
+}
+
+// InDelta assert that two floating-point values differ from each other within a certain range.
+func InDelta(t TestingT, want, give any, delta float64, fmtAndArgs ...any) bool {
+	if mathutil.InDeltaAny(want, give, delta) {
+		return true
+	}
+
+	t.Helper()
+	return fail(t, fmt.Sprintf("Given %v should in delta %v with %v", give, delta, want), fmtAndArgs)
 }
 
 // IsType assert data type equals
