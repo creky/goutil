@@ -181,12 +181,13 @@ func setValues(rv reflect.Value, data map[string]any, opt *SetOptions, envPrefix
 			// up: special handle time.Time field
 			if reflects.IsTimeType(fv.Type()) {
 				// maybe val is time.Time
-				if reflects.IsTimeType(valRf.Type()) {
-					if err := reflects.SetValue(fv, valRf); err != nil {
-						es = append(es, err)
-					}
+				//if reflects.IsTimeType(valRf.Type()) {
+				if err := reflects.SetValue(fv, valRf); err != nil {
+					es = append(es, err)
+				} else {
 					continue
 				}
+				//}
 
 				// val is datetime string
 				tm, err := strutil.ToTime(strutil.StringOr(val, ""))
